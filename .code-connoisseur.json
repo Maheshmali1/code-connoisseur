@@ -1,0 +1,19 @@
+{
+  "indexName": "code-connoisseur",
+  "llmProvider": "anthropic",
+  "extensions": [
+    "js",
+    "ts",
+    "jsx",
+    "tsx",
+    "py",
+    "java"
+  ],
+  "excludeDirs": [
+    "node_modules",
+    "dist",
+    "build",
+    ".git"
+  ],
+  "version": "1.0.0"
+}
