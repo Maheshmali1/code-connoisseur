@@ -310,7 +310,23 @@ program
       process.exit(1);
     }
     
+    // Flag to track if review process is in progress
+    let reviewInProgress = false;
+    
+    // Add a local handler for interrupts during review
+    const handleInterrupt = () => {
+      if (reviewInProgress) {
+        console.log(chalk.yellow('\n\nReview process interrupted. Cleaning up...'));
+        // Any cleanup needed for the review process
+        process.exit(0);
+      }
+    };
+    
+    // Register the handler for this specific command
+    process.on('SIGINT', handleInterrupt);
+    
     const spinner = ora('Preparing code review...').start();
+    reviewInProgress = true;
     
     try {
       // Initialize agent
@@ -617,7 +633,13 @@ program
     } catch (error) {
       spinner.fail(`Review failed: ${error.message}`);
       console.error(error);
+      reviewInProgress = false;
       process.exit(1);
+    } finally {
+      // Clean up
+      reviewInProgress = false;
+      // Remove our specific handler to avoid memory leaks
+      process.removeListener('SIGINT', handleInterrupt);
     }
   });
 
@@ -723,6 +745,25 @@ program
 program.on('command:*', () => {
   console.error(chalk.red(`Invalid command: ${program.args.join(' ')}`));
   console.log(`See --help for a list of available commands.`);
+  process.exit(1);
+});
+
+// Handle SIGINT (Ctrl+C) and other termination signals
+process.on('SIGINT', () => {
+  console.log(chalk.yellow('\n\nProcess interrupted by user. Shutting down gracefully...'));
+  console.log(chalk.yellow('Any in-progress reviews will be terminated.'));
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log(chalk.yellow('\n\nProcess terminated. Shutting down gracefully...'));
+  process.exit(0);
+});
+
+// This makes sure we don't leave hanging processes
+process.on('uncaughtException', (error) => {
+  console.error(chalk.red('\n\nUnexpected error:'), error.message);
+  console.error(chalk.yellow('Shutting down...'));
   process.exit(1);
 });
 
