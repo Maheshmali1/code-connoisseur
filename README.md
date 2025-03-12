@@ -27,12 +27,12 @@ Code Connoisseur is an AI-powered code review agent built for multiple technolog
    npm install
    ```
 
-3. Create a `.env` file from the template:
+3. Create a `.env` file in the directory where you'll be running the agent:
    ```
-   cp .env.example .env
+   cp .env.example /path/to/your/project/.env
    ```
 
-4. Add your API keys to the `.env` file:
+4. Add your API keys to the `.env` file in your target project directory:
    - Get an OpenAI API key from [OpenAI](https://platform.openai.com/)
    - Get an Anthropic API key from [Anthropic](https://console.anthropic.com/)
    - Get a Pinecone API key from [Pinecone](https://app.pinecone.io/)
