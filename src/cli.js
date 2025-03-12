@@ -289,6 +289,7 @@ program
   .option('-s, --stack <name>', 'Specify the technology stack (MEAN/MERN, Java, Python)')
   .option('-d, --directory', 'Review an entire directory of files')
   .option('-e, --extensions <list>', 'File extensions to include when reviewing directories', config.extensions.join(','))
+  .option('-m, --markdown <file>', 'Save review to a markdown file')
   .action(async (targetPath, options) => {
     await checkApiKeys('review');
     
@@ -471,13 +472,34 @@ program
         console.log('\n' + chalk.bold.cyan('Code Connoisseur Directory Review:'));
         console.log(chalk.yellow('============================================='));
         
+        // Prepare markdown content
+        let markdownContent = `# Code Connoisseur Review: ${path.basename(absolutePath)}\n\n`;
+        markdownContent += `*Generated on ${new Date().toLocaleString()}*\n\n`;
+        markdownContent += `## Directory: ${absolutePath}\n\n`;
+        
         for (const { filePath, review } of reviews) {
           console.log(chalk.bold.green(`\n## File: ${path.basename(filePath)}`));
           console.log(review);
           console.log('\n' + chalk.yellow('---------------------------------------------'));
+          
+          // Add to markdown content
+          markdownContent += `## File: ${path.basename(filePath)}\n\n`;
+          markdownContent += `\`\`\`\n${review}\n\`\`\`\n\n`;
+          markdownContent += `---\n\n`;
         }
         
         console.log(chalk.yellow('============================================='));
+        
+        // Save to markdown file if requested
+        if (options.markdown) {
+          try {
+            const mdFilePath = path.resolve(process.cwd(), options.markdown);
+            fs.writeFileSync(mdFilePath, markdownContent);
+            console.log(chalk.green(`\nReview saved to markdown file: ${mdFilePath}`));
+          } catch (error) {
+            console.error(chalk.red(`Error saving to markdown file: ${error.message}`));
+          }
+        }
         
         // Ask for feedback
         const { feedback, outcome } = await inquirer.prompt([
@@ -546,6 +568,24 @@ program
         console.log(chalk.yellow('============================================='));
         console.log(review);
         console.log(chalk.yellow('============================================='));
+        
+        // Save to markdown file if requested
+        if (options.markdown) {
+          try {
+            const mdFilePath = path.resolve(process.cwd(), options.markdown);
+            
+            // Create markdown content
+            let markdownContent = `# Code Connoisseur Review: ${path.basename(absolutePath)}\n\n`;
+            markdownContent += `*Generated on ${new Date().toLocaleString()}*\n\n`;
+            markdownContent += `## File: ${absolutePath}\n\n`;
+            markdownContent += `\`\`\`\n${review}\n\`\`\`\n\n`;
+            
+            fs.writeFileSync(mdFilePath, markdownContent);
+            console.log(chalk.green(`\nReview saved to markdown file: ${mdFilePath}`));
+          } catch (error) {
+            console.error(chalk.red(`Error saving to markdown file: ${error.message}`));
+          }
+        }
         
         // Ask for feedback
         const { feedback, outcome } = await inquirer.prompt([
