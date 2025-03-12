@@ -281,24 +281,26 @@ program
 // Review command
 program
   .command('review')
-  .description('Review code changes in a file')
-  .argument('<file>', 'File to review')
-  .option('-o, --old <file>', 'Previous version of the file (if not in git)')
+  .description('Review code changes in a file or directory')
+  .argument('<path>', 'File or directory to review')
+  .option('-o, --old <path>', 'Previous version of the file (if not in git)')
   .option('-l, --llm <provider>', 'LLM provider (openai or anthropic)', config.llmProvider)
   .option('-r, --root <dir>', 'Project root directory for analysis', process.cwd())
   .option('-s, --stack <name>', 'Specify the technology stack (MEAN/MERN, Java, Python)')
-  .action(async (file, options) => {
+  .option('-d, --directory', 'Review an entire directory of files')
+  .option('-e, --extensions <list>', 'File extensions to include when reviewing directories', config.extensions.join(','))
+  .action(async (targetPath, options) => {
     await checkApiKeys('review');
     
     // Update config
     config.llmProvider = options.llm;
     saveConfig();
     
-    const filePath = path.resolve(process.cwd(), file);
+    const absolutePath = path.resolve(process.cwd(), targetPath);
     const projectRoot = path.resolve(process.cwd(), options.root);
     
-    if (!fs.existsSync(filePath)) {
-      console.error(chalk.red(`Error: File not found: ${filePath}`));
+    if (!fs.existsSync(absolutePath)) {
+      console.error(chalk.red(`Error: Path not found: ${absolutePath}`));
       process.exit(1);
     }
     
@@ -310,75 +312,267 @@ program
     const spinner = ora('Preparing code review...').start();
     
     try {
-      let oldCode = '';
-      const newCode = fs.readFileSync(filePath, 'utf8');
-      
-      // Get old version from options or try git
-      if (options.old) {
-        const oldFilePath = path.resolve(process.cwd(), options.old);
-        if (fs.existsSync(oldFilePath)) {
-          oldCode = fs.readFileSync(oldFilePath, 'utf8');
-        } else {
-          spinner.fail(`Previous version not found: ${oldFilePath}`);
-          process.exit(1);
-        }
-      } else {
-        // Try to get previous version from git
-        try {
-          const { execSync } = require('child_process');
-          oldCode = execSync(`git show HEAD:${path.relative(process.cwd(), filePath)}`, { 
-            encoding: 'utf8',
-            stdio: ['pipe', 'pipe', 'ignore']
-          });
-        } catch (error) {
-          spinner.fail('Could not get previous version from git. Use --old option to specify the previous version.');
-          process.exit(1);
-        }
-      }
-      
       // Initialize agent
       spinner.text = 'Initializing code review agent...';
       const agent = new CodeReviewAgent(config.indexName, config.llmProvider);
       
-      // Generate enhanced review with advanced analysis
-      const review = await agent.reviewCode(oldCode, newCode, filePath, { 
-        projectRoot: projectRoot,
-        stack: options.stack
-      });
+      // Check if we're reviewing a directory or a single file
+      const isDirectory = fs.statSync(absolutePath).isDirectory() || options.directory;
       
-      spinner.succeed('Code review completed!');
-      
-      // Display review
-      console.log('\n' + chalk.bold.cyan('Code Connoisseur Review:'));
-      console.log(chalk.yellow('============================================='));
-      console.log(review);
-      console.log(chalk.yellow('============================================='));
-      
-      // Ask for feedback
-      const { feedback, outcome } = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'feedback',
-          message: 'Do you have any feedback on this review? (optional)'
-        },
-        {
-          type: 'list',
-          name: 'outcome',
-          message: 'Was this review helpful?',
-          choices: ['Accepted', 'Partially Helpful', 'Not Helpful']
+      if (isDirectory) {
+        // Directory mode - review multiple files
+        spinner.text = 'Scanning directory for changes...';
+        
+        // Get file extensions to include
+        const extensionsToInclude = options.extensions.split(',').map(ext => ext.trim());
+        
+        // Get all files in the directory that match the extensions
+        const { execSync } = require('child_process');
+        let filesToReview = [];
+        let excludedDirs = config.excludeDirs;
+        
+        try {
+          // First try using git to find changed files
+          const gitOutput = execSync(
+            `git diff --name-only HEAD -- ${absolutePath}`, 
+            { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }
+          );
+          
+          const changedFiles = gitOutput.split('\n').filter(Boolean);
+          
+          if (changedFiles.length > 0) {
+            // Filter by extensions
+            filesToReview = changedFiles.filter(file => {
+              const ext = path.extname(file).toLowerCase().substring(1); // Remove the dot
+              return extensionsToInclude.includes(ext);
+            }).map(file => path.resolve(process.cwd(), file));
+            
+            spinner.text = `Found ${filesToReview.length} changed files in git`;
+          } else {
+            spinner.text = 'No git changes found, scanning directory recursively';
+            // Fall back to recursive scan
+            const getAllFiles = (dir, extensions, excluded) => {
+              const files = [];
+              const items = fs.readdirSync(dir);
+              
+              for (const item of items) {
+                const itemPath = path.join(dir, item);
+                const isExcluded = excluded.some(excl => itemPath.includes(excl));
+                
+                if (isExcluded) continue;
+                
+                const stat = fs.statSync(itemPath);
+                if (stat.isDirectory()) {
+                  files.push(...getAllFiles(itemPath, extensions, excluded));
+                } else {
+                  const ext = path.extname(itemPath).toLowerCase().substring(1); // Remove the dot
+                  if (extensions.includes(ext)) {
+                    files.push(itemPath);
+                  }
+                }
+              }
+              
+              return files;
+            };
+            
+            filesToReview = getAllFiles(absolutePath, extensionsToInclude, excludedDirs);
+          }
+        } catch (error) {
+          spinner.text = 'Scanning directory recursively';
+          // If git fails, scan the directory recursively
+          const getAllFiles = (dir, extensions, excluded) => {
+            const files = [];
+            const items = fs.readdirSync(dir);
+            
+            for (const item of items) {
+              const itemPath = path.join(dir, item);
+              const isExcluded = excluded.some(excl => itemPath.includes(excl));
+              
+              if (isExcluded) continue;
+              
+              const stat = fs.statSync(itemPath);
+              if (stat.isDirectory()) {
+                files.push(...getAllFiles(itemPath, extensions, excluded));
+              } else {
+                const ext = path.extname(itemPath).toLowerCase().substring(1); // Remove the dot
+                if (extensions.includes(ext)) {
+                  files.push(itemPath);
+                }
+              }
+            }
+            
+            return files;
+          };
+          
+          filesToReview = getAllFiles(absolutePath, extensionsToInclude, excludedDirs);
         }
-      ]);
-      
-      // Log feedback with review content for future learning
-      if (feedback || outcome) {
-        const reviewId = Date.now().toString();
-        agent.logFeedback(
-          reviewId, 
-          feedback, 
-          outcome.toLowerCase().replace(' ', '_'),
-          review
-        );
-        console.log(chalk.green('Thank you for your feedback!'));
+        
+        // Limit the number of files to avoid timeouts
+        const MAX_FILES = 10;
+        if (filesToReview.length > MAX_FILES) {
+          console.log(chalk.yellow(`Found ${filesToReview.length} files, but only reviewing the ${MAX_FILES} most recently modified`));
+          
+          // Sort by modification time
+          filesToReview = filesToReview
+            .map(file => ({ path: file, mtime: fs.statSync(file).mtime }))
+            .sort((a, b) => b.mtime - a.mtime)
+            .slice(0, MAX_FILES)
+            .map(file => file.path);
+        }
+        
+        if (filesToReview.length === 0) {
+          spinner.fail('No matching files found to review');
+          process.exit(1);
+        }
+        
+        spinner.succeed(`Found ${filesToReview.length} files to review`);
+        
+        // Review each file
+        const reviews = [];
+        for (let i = 0; i < filesToReview.length; i++) {
+          const filePath = filesToReview[i];
+          spinner.text = `Reviewing file ${i+1}/${filesToReview.length}: ${path.basename(filePath)}`;
+          spinner.start();
+          
+          try {
+            let oldCode = '';
+            const newCode = fs.readFileSync(filePath, 'utf8');
+            
+            // Get old version from git
+            try {
+              const { execSync } = require('child_process');
+              oldCode = execSync(`git show HEAD:${path.relative(process.cwd(), filePath)}`, { 
+                encoding: 'utf8',
+                stdio: ['pipe', 'pipe', 'ignore']
+              });
+            } catch (error) {
+              // If git fails, use a placeholder to indicate it's a new file
+              oldCode = '// This appears to be a new file with no previous version';
+            }
+            
+            // Generate review for this file
+            const review = await agent.reviewCode(oldCode, newCode, filePath, { 
+              projectRoot: projectRoot,
+              stack: options.stack
+            });
+            
+            reviews.push({
+              filePath,
+              review
+            });
+            
+            spinner.succeed(`Reviewed ${path.basename(filePath)}`);
+          } catch (error) {
+            spinner.warn(`Failed to review ${path.basename(filePath)}: ${error.message}`);
+          }
+        }
+        
+        // Display all reviews
+        console.log('\n' + chalk.bold.cyan('Code Connoisseur Directory Review:'));
+        console.log(chalk.yellow('============================================='));
+        
+        for (const { filePath, review } of reviews) {
+          console.log(chalk.bold.green(`\n## File: ${path.basename(filePath)}`));
+          console.log(review);
+          console.log('\n' + chalk.yellow('---------------------------------------------'));
+        }
+        
+        console.log(chalk.yellow('============================================='));
+        
+        // Ask for feedback
+        const { feedback, outcome } = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'feedback',
+            message: 'Do you have any feedback on these reviews? (optional)'
+          },
+          {
+            type: 'list',
+            name: 'outcome',
+            message: 'Were these reviews helpful?',
+            choices: ['Accepted', 'Partially Helpful', 'Not Helpful']
+          }
+        ]);
+        
+        // Log feedback with review content for future learning
+        if (feedback || outcome) {
+          const reviewId = Date.now().toString();
+          agent.logFeedback(
+            reviewId, 
+            feedback, 
+            outcome.toLowerCase().replace(' ', '_'),
+            JSON.stringify(reviews.map(r => ({ file: r.filePath, review: r.review })))
+          );
+          console.log(chalk.green('Thank you for your feedback!'));
+        }
+      } else {
+        // Single file mode
+        let oldCode = '';
+        const newCode = fs.readFileSync(absolutePath, 'utf8');
+        
+        // Get old version from options or try git
+        if (options.old) {
+          const oldFilePath = path.resolve(process.cwd(), options.old);
+          if (fs.existsSync(oldFilePath)) {
+            oldCode = fs.readFileSync(oldFilePath, 'utf8');
+          } else {
+            spinner.fail(`Previous version not found: ${oldFilePath}`);
+            process.exit(1);
+          }
+        } else {
+          // Try to get previous version from git
+          try {
+            const { execSync } = require('child_process');
+            oldCode = execSync(`git show HEAD:${path.relative(process.cwd(), absolutePath)}`, { 
+              encoding: 'utf8',
+              stdio: ['pipe', 'pipe', 'ignore']
+            });
+          } catch (error) {
+            spinner.fail('Could not get previous version from git. Use --old option to specify the previous version.');
+            process.exit(1);
+          }
+        }
+        
+        // Generate enhanced review with advanced analysis
+        const review = await agent.reviewCode(oldCode, newCode, absolutePath, { 
+          projectRoot: projectRoot,
+          stack: options.stack
+        });
+        
+        spinner.succeed('Code review completed!');
+        
+        // Display review
+        console.log('\n' + chalk.bold.cyan('Code Connoisseur Review:'));
+        console.log(chalk.yellow('============================================='));
+        console.log(review);
+        console.log(chalk.yellow('============================================='));
+        
+        // Ask for feedback
+        const { feedback, outcome } = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'feedback',
+            message: 'Do you have any feedback on this review? (optional)'
+          },
+          {
+            type: 'list',
+            name: 'outcome',
+            message: 'Was this review helpful?',
+            choices: ['Accepted', 'Partially Helpful', 'Not Helpful']
+          }
+        ]);
+        
+        // Log feedback with review content for future learning
+        if (feedback || outcome) {
+          const reviewId = Date.now().toString();
+          agent.logFeedback(
+            reviewId, 
+            feedback, 
+            outcome.toLowerCase().replace(' ', '_'),
+            review
+          );
+          console.log(chalk.green('Thank you for your feedback!'));
+        }
       }
     } catch (error) {
       spinner.fail(`Review failed: ${error.message}`);
