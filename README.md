@@ -49,10 +49,10 @@ Code Connoisseur is an AI-powered code review agent built for multiple technolog
 Before you can use Code Connoisseur, you need to index your codebase:
 
 ```
-code-connoisseur index --directory /path/to/your/project
+code-connoisseur index
 ```
 
-Options:
+Options(optional):
 - `--directory, -d`: Path to your project (default: current directory)
 - `--index-name, -i`: Name for the vector database index (default: code-connoisseur)
 - `--extensions, -e`: File extensions to index (default: js,ts,jsx,tsx)
@@ -63,7 +63,7 @@ Options:
 To review changes in a file:
 
 ```
-code-connoisseur review path/to/your/file.js
+code-connoisseur review <path to file/directory>
 ```
 
 Options:
@@ -71,6 +71,7 @@ Options:
 - `--llm, -l`: LLM provider to use (openai or anthropic)
 - `--root, -r`: Project root directory for dependency analysis
 - `--stack, -s`: Specify the technology stack (MEAN/MERN, Java, Python)
+- `--directory, -d`: Review an entire directory of files
 
 ### Analyzing Feedback
 
