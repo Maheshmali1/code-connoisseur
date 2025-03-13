@@ -18,7 +18,7 @@ Code Connoisseur is an AI-powered code review agent built for multiple technolog
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/code-connoisseur.git
+   git clone https://github.com/Maheshmali1/code-connoisseur
    cd code-connoisseur
    ```
 
