@@ -172,7 +172,7 @@ class CodeReviewAgent {
     
     // Step 5: Suggest edge cases
     console.log('Identifying potential edge cases...');
-    const edgeCases = suggestEdgeCases(newCode);
+    const edgeCases = suggestEdgeCases(newCode, filePath);
     
     // Step 6: Get relevant context from the codebase
     console.log('Getting relevant code context...');

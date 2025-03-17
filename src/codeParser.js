@@ -4,6 +4,7 @@ const esprima = require('esprima');
 const path = require('path');
 const ignore = require('ignore');
 const { processTypeScriptFile } = require('./tsParser');
+const { processPythonFile } = require('./pythonParser');
 
 /**
  * Loads all code files from the given directory, respecting .gitignore
@@ -12,7 +13,7 @@ const { processTypeScriptFile } = require('./tsParser');
  * @param {string[]} excludeDirs - Additional directories to exclude
  * @returns {Promise<Array<{path: string, content: string}>>} - Array of file objects
  */
-async function loadCodebase(directory, extensions = ['js', 'ts'], excludeDirs = []) {
+async function loadCodebase(directory, extensions = ['js', 'ts', 'py'], excludeDirs = []) {
   try {
     // Resolve the directory to an absolute path, expanding ~ if present
     const resolvedDirectory = directory.startsWith('~')
@@ -26,6 +27,10 @@ async function loadCodebase(directory, extensions = ['js', 'ts'], excludeDirs = 
     if (!dirExists) {
       throw new Error(`Directory does not exist: ${resolvedDirectory}`);
     }
+    
+    // Check if it's a file rather than a directory
+    const stats = await fs.stat(resolvedDirectory);
+    const isFile = stats.isFile();
     
     // Setup ignore rules
     const ig = ignore();
@@ -104,24 +109,52 @@ async function loadCodebase(directory, extensions = ['js', 'ts'], excludeDirs = 
       console.warn(`Warning: Could not load .gitignore: ${error.message}`);
     }
     
-    // Generate glob pattern with the resolved directory
-    const pattern = `${resolvedDirectory}/**/*.{${extensions.join(',')}}`;
-    console.log(`Using glob pattern: ${pattern}`);
+    // Decide what pattern to use based on whether it's a file or directory
+    let allFiles = [];
     
-    // Find all files matching the pattern
-    const allFiles = glob.sync(pattern, { 
-      nodir: true,  // Explicitly exclude directories
-      follow: false,  // Don't follow symlinks to avoid loops
-      dot: false     // Ignore dot files by default
-    });
+    if (isFile) {
+      // If it's a single file, check its extension and add it directly if it matches
+      const ext = path.extname(resolvedDirectory).substring(1).toLowerCase();
+      if (extensions.includes(ext)) {
+        console.log(`Processing single file: ${resolvedDirectory}`);
+        allFiles = [resolvedDirectory];
+      } else {
+        console.log(`File extension ${ext} not in the requested extensions: ${extensions.join(',')}`);
+        allFiles = [];
+      }
+    } else {
+      // Generate glob pattern for directory - handle each extension separately for better compatibility
+      let allFilesArr = [];
+      for (const ext of extensions) {
+        const pattern = `${resolvedDirectory}/**/*.${ext}`;
+        console.log(`Using glob pattern: ${pattern}`);
+        
+        // Find all files matching the pattern
+        const extFiles = glob.sync(pattern, { 
+          nodir: true,  // Explicitly exclude directories
+          follow: false,  // Don't follow symlinks to avoid loops
+          dot: false     // Ignore dot files by default
+        });
+        
+        allFilesArr = [...allFilesArr, ...extFiles];
+      }
+      allFiles = allFilesArr;
+    }
     
     console.log(`Found ${allFiles.length} files matching extensions`);
     
-    // Filter files using ignore rules
-    const files = allFiles.filter(file => {
-      // Get the relative path for gitignore filtering
-      const relativePath = path.relative(resolvedDirectory, file);
-      return !ig.ignores(relativePath);
+    // Filter files using ignore rules (but don't filter single files)
+    const files = isFile ? allFiles : allFiles.filter(file => {
+      try {
+        // Get the relative path for gitignore filtering
+        // We need to get a relative path from the codebase root, which is resolvedDirectory
+        // for directories, or its parent for single files
+        const relativePath = path.relative(resolvedDirectory, file);
+        return !ig.ignores(relativePath);
+      } catch (error) {
+        console.warn(`Warning: Error calculating relative path for ${file}: ${error.message}`);
+        return true; // Include the file if we can't determine
+      }
     });
     
     console.log(`After applying ignore rules: ${files.length} files remain`);
@@ -255,7 +288,22 @@ function splitCode(content, filePath) {
     }
   }
   
-  // Skip parsing for non-JavaScript files - they have different syntax
+  // Use Python parser for Python files
+  if (['.py'].includes(ext)) {
+    try {
+      return processPythonFile(content, filePath);
+    } catch (pyError) {
+      // If Python parsing fails, fall back to returning the file as-is
+      return [{
+        type: 'File',
+        name: fileName,
+        code: content.substring(0, Math.min(content.length, 5000)), // Limit size
+        path: filePath
+      }];
+    }
+  }
+  
+  // Skip parsing for non-JavaScript/Python files - they have different syntax
   if (!['.js', '.jsx', '.mjs', '.cjs', '.es6'].includes(ext)) {
     return [{
       type: 'File',

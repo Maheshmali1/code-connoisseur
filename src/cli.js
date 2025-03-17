@@ -42,8 +42,8 @@ const CONFIG_PATH = path.join(process.cwd(), '.code-connoisseur.json');
 let config = {
   indexName: DEFAULT_INDEX_NAME,
   llmProvider: process.env.DEFAULT_LLM_PROVIDER || 'anthropic', // Use default from env or fallback to anthropic
-  extensions: ['js', 'ts', 'jsx', 'tsx'],
-  excludeDirs: ['node_modules', 'dist', 'build', '.git'],
+  extensions: ['js', 'ts', 'jsx', 'tsx', 'py'],  // Added Python files by default
+  excludeDirs: ['node_modules', 'dist', 'build', '.git', 'venv', '__pycache__'],  // Added Python-specific dirs to exclude
   version: '1.0.0'
 };
 
@@ -224,18 +224,21 @@ program
       const otherFiles = [];
       
       // Categorize files by type for better reporting
+      const pyFiles = [];
       for (const file of codebase) {
         const ext = path.extname(file.path).toLowerCase();
         if (['.ts', '.tsx'].includes(ext)) {
           tsFiles.push(file);
         } else if (['.js', '.jsx', '.mjs', '.cjs', '.es6'].includes(ext)) {
           jsFiles.push(file);
+        } else if (['.py'].includes(ext)) {
+          pyFiles.push(file);
         } else {
           otherFiles.push(file);
         }
       }
       
-      console.log(`Processing ${tsFiles.length} TypeScript files, ${jsFiles.length} JavaScript files, and ${otherFiles.length} other files`);
+      console.log(`Processing ${tsFiles.length} TypeScript files, ${jsFiles.length} JavaScript files, ${pyFiles.length} Python files, and ${otherFiles.length} other files`);
       
       // Process all files
       for (const file of codebase) {
