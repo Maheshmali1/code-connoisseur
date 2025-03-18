@@ -39,6 +39,12 @@ const DEFAULT_VERSION = '1.0.0';
 // Global configuration directory (in user's home folder)
 const os = require('os');
 const GLOBAL_CONFIG_DIR = path.join(os.homedir(), '.code-connoisseur-config');
+// Ensure global config directory exists
+try {
+  fs.ensureDirSync(GLOBAL_CONFIG_DIR);
+} catch (err) {
+  // Ignore permission errors, we'll handle them later
+}
 const GLOBAL_CONFIG_PATH = path.join(GLOBAL_CONFIG_DIR, 'config.json');
 
 // Project-specific configuration directory
@@ -929,9 +935,31 @@ program
 program
   .command('setup')
   .description('Configure API keys and global settings')
-  .action(() => {
-    const setupScript = path.join(__dirname, '..', 'scripts', 'postinstall.js');
-    require(setupScript);
+  .action(async () => {
+    try {
+      // Use spawn to run the script in a new process with proper TTY handling
+      const { spawn } = require('child_process');
+      const setupScript = path.join(__dirname, '..', 'scripts', 'postinstall.js');
+      
+      const child = spawn('node', [setupScript], {
+        stdio: 'inherit' // This ensures proper TTY handling for interactive prompts
+      });
+      
+      child.on('error', (error) => {
+        console.error(chalk.red('Error running setup:'), error.message);
+        process.exit(1);
+      });
+      
+      child.on('exit', (code) => {
+        if (code !== 0) {
+          console.error(chalk.red(`Setup exited with code ${code}`));
+          process.exit(code);
+        }
+      });
+    } catch (error) {
+      console.error(chalk.red('Error running setup:'), error.message);
+      process.exit(1);
+    }
   });
 
 // Handle unknown commands

@@ -25,9 +25,17 @@ if (process.env.CI || process.env.CONTINUOUS_INTEGRATION) {
 const isNpmInstall = process.env.npm_config_global === 'true' || 
                      process.env.npm_command === 'install';
 
-// Only run the setup wizard automatically on global installs
-if (isNpmInstall && process.env.npm_config_global !== 'true') {
-  console.log('Installed as a local dependency. Run `npx code-connoisseur setup` for configuration.');
+// Skip interactive prompts during npm install to avoid SIGINT errors
+if (isNpmInstall) {
+  console.log('');
+  console.log('Code Connoisseur has been installed successfully!');
+  console.log('');
+  console.log('To complete setup and configure your API keys, please run:');
+  console.log('  code-connoisseur setup');
+  console.log('');
+  console.log('For help and available commands:');
+  console.log('  code-connoisseur --help');
+  console.log('');
   process.exit(0);
 }
 
