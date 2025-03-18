@@ -195,7 +195,7 @@ program
   .command('index')
   .description('Index your codebase for the AI agent')
   .option('-d, --directory <path>', 'Directory to index', process.cwd())
-  .option('-i, --index-name <name>', 'Name for the Pinecone index', config.indexName)
+  .option('-i, --index-name <name>', 'Name for the vector database index', config.indexName)
   .option('-e, --extensions <list>', 'File extensions to index (comma-separated)', config.extensions.join(','))
   .option('--js-only', 'Only index JavaScript files (shortcut for -e js,jsx,ts,tsx)')
   .option('--py-only', 'Only index Python files (shortcut for -e py)')
