@@ -177,8 +177,24 @@ async function main() {
     envContent += `DEFAULT_LLM_PROVIDER=${answers.defaultProvider}\n`;
   }
   
-  // Save .env file
-  fs.writeFileSync(GLOBAL_ENV_FILE, envContent, { mode: 0o600 }); // Secure permissions
+  // Save .env file with secure permissions
+  try {
+    fs.writeFileSync(GLOBAL_ENV_FILE, envContent, { mode: 0o600 }); // Secure permissions
+    console.log(`API keys stored securely in: ${GLOBAL_ENV_FILE}`);
+  } catch (error) {
+    console.error(`Error saving API keys: ${error.message}`);
+    console.error(`Attempted to save to: ${GLOBAL_ENV_FILE}`);
+    
+    // Try with more permissive permissions as a fallback
+    try {
+      fs.writeFileSync(GLOBAL_ENV_FILE, envContent, { mode: 0o644 });
+      console.log(`API keys stored with standard permissions in: ${GLOBAL_ENV_FILE}`);
+      console.log('Warning: Consider securing this file manually.');
+    } catch (fallbackError) {
+      console.error(`Failed to save API keys: ${fallbackError.message}`);
+      process.exit(1);
+    }
+  }
   
   console.log(chalk.green('\n✅ Setup completed successfully!'));
   console.log(`\nTo use Code Connoisseur, run ${chalk.cyan('code-connoisseur --help')}`);

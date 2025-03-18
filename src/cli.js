@@ -113,6 +113,11 @@ function delay(ms) {
 
 // Check if API keys are set and valid
 async function checkApiKeys(command) {
+  // Skip key check for setup command
+  if (command === 'setup') {
+    return;
+  }
+  
   // Slight delay to ensure environment variables are fully loaded
   await delay(100);
   const errors = [];
@@ -124,12 +129,14 @@ async function checkApiKeys(command) {
                         process.env.OPENAI_API_KEY !== defaultKeyValue &&
                         process.env.OPENAI_API_KEY.startsWith('sk-');
   
-  // Validate Anthropic API key format - with detailed debug
+  // Validate Anthropic API key format - with detailed debug in verbose mode
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  console.log('Anthropic key check:', anthropicKey ? `${anthropicKey.slice(0, 10)}...` : 'undefined');
-  console.log('Starts with sk-ant-?', anthropicKey?.startsWith('sk-ant-'));
-  console.log('Equals placeholder?', anthropicKey === 'placeholder');
-  console.log('Equals default value?', anthropicKey === 'your_anthropic_api_key_here');
+  if (global.verbose) {
+    console.log('Anthropic key check:', anthropicKey ? `${anthropicKey.slice(0, 10)}...` : 'undefined');
+    console.log('Starts with sk-ant-?', anthropicKey?.startsWith('sk-ant-'));
+    console.log('Equals placeholder?', anthropicKey === 'placeholder');
+    console.log('Equals default value?', anthropicKey === 'your_anthropic_api_key_here');
+  }
   
   const hasValidAnthropic = anthropicKey && 
                            anthropicKey !== 'placeholder' && 
@@ -138,19 +145,19 @@ async function checkApiKeys(command) {
   
   // Only check if we need the key for the selected provider
   if (config.llmProvider === 'openai' && !hasValidOpenAI) {
-    errors.push('OPENAI_API_KEY is not properly set in .env file');
+    errors.push('OPENAI_API_KEY is not properly set');
   }
   
   if (config.llmProvider === 'anthropic' && !hasValidAnthropic) {
-    errors.push('ANTHROPIC_API_KEY is not properly set in .env file');
+    errors.push('ANTHROPIC_API_KEY is not properly set');
   }
   
-  // Print validation status for debugging
-  if (hasValidOpenAI) {
+  // Print validation status in verbose mode
+  if (hasValidOpenAI && global.verbose) {
     console.log('Valid OpenAI API key detected');
   }
   
-  if (hasValidAnthropic) {
+  if (hasValidAnthropic && global.verbose) {
     console.log('Valid Anthropic API key detected');
   }
   
@@ -166,22 +173,13 @@ async function checkApiKeys(command) {
     console.error(chalk.red('Error: Missing or Invalid API Keys'));
     errors.forEach(error => console.error(chalk.yellow(`- ${error}`)));
     console.log('');
-    console.log(chalk.cyan('Please add your real API keys to the .env file:'));
-    console.log('1. Open the .env file in the project root directory');
-    console.log('2. Replace the placeholder values with your actual API keys:');
-    
-    if (config.llmProvider === 'openai') {
-      console.log(`   ${chalk.green('OPENAI_API_KEY=')}${chalk.blue('your_actual_key_here')}`);
-    } else {
-      console.log(`   ${chalk.green('ANTHROPIC_API_KEY=')}${chalk.blue('your_actual_key_here')}`);
-    }
-    
-    console.log(`   ${chalk.green('PINECONE_API_KEY=')}${chalk.blue('your_actual_key_here')} (optional)`);
+    console.log(chalk.cyan('Please configure your API keys with:'));
+    console.log(`  ${chalk.bold('code-connoisseur setup')}`);
     console.log('');
     console.log('You can obtain API keys from:');
     console.log('- OpenAI API key: https://platform.openai.com/');
     console.log('- Anthropic API key: https://console.anthropic.com/');
-    console.log('- Pinecone API key: https://app.pinecone.io/');
+    console.log('- Pinecone API key: https://app.pinecone.io/ (optional)');
     process.exit(1);
   }
 }
