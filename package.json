@@ -1,24 +1,38 @@
 {
   "name": "code-connoisseur",
-  "version": "1.0.0",
-  "description": "AI-powered code review agent for Node.js projects",
+  "version": "1.0.0-beta.1",
+  "description": "AI-powered code review agent for multiple technology stacks",
   "main": "index.js",
   "bin": {
     "code-connoisseur": "./index.js"
   },
   "scripts": {
     "start": "node index.js",
+    "postinstall": "node scripts/postinstall.js || true",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
     "ai",
     "code-review",
     "llm",
+    "openai",
+    "anthropic",
     "nodejs",
+    "javascript",
+    "typescript",
+    "python",
     "langchain"
   ],
-  "author": "",
+  "author": "Mahesh Mali",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Maheshmali1/code-connoisseur"
+  },
+  "homepage": "https://github.com/Maheshmali1/code-connoisseur#readme",
+  "bugs": {
+    "url": "https://github.com/Maheshmali1/code-connoisseur/issues"
+  },
   "dependencies": {
     "@langchain/anthropic": "^0.3.15",
     "@langchain/community": "^0.3.34",
@@ -41,7 +55,7 @@
     "langchain": "^0.3.19",
     "madge": "^8.0.0",
     "ora": "^5.4.1",
-    "typescript": "^4.9.5"
+    "typescript": "^5.4.4"
   },
   "engines": {
     "node": ">=16.0.0"
