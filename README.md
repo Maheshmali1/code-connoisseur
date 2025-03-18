@@ -58,6 +58,16 @@ Options(optional):
 - `--extensions, -e`: File extensions to index (default: js,ts,jsx,tsx)
 - `--exclude, -x`: Directories to exclude (default: node_modules,dist,build,.git)
 
+All configuration and index data will be stored in a `.code-connoisseur` directory within your project:
+
+```
+.code-connoisseur/
+  ├── config.json        # Configuration settings
+  ├── feedback.json      # User feedback history
+  ├── metadata/          # Additional metadata
+  └── vectors/           # Vector embeddings for your codebase
+```
+
 ### Reviewing Code Changes
 
 To review changes in a file:

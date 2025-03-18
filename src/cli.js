@@ -35,8 +35,12 @@ const { CodeReviewAgent } = require('./agent');
 // Default index name
 const DEFAULT_INDEX_NAME = 'code-connoisseur';
 
+// Create a central directory for all code-connoisseur files in the repository
+const CONNOISSEUR_DIR = path.join(process.cwd(), '.code-connoisseur');
+fs.ensureDirSync(CONNOISSEUR_DIR);
+
 // Configuration file path
-const CONFIG_PATH = path.join(process.cwd(), '.code-connoisseur.json');
+const CONFIG_PATH = path.join(CONNOISSEUR_DIR, 'config.json');
 
 // Initialize configuration
 let config = {
@@ -47,12 +51,25 @@ let config = {
   version: '1.0.0'
 };
 
-// Load configuration if exists
+// Check for legacy config file in project root (for migration)
+const LEGACY_CONFIG_PATH = path.join(process.cwd(), '.code-connoisseur.json');
+
+// Load configuration 
 if (fs.existsSync(CONFIG_PATH)) {
   try {
     config = { ...config, ...fs.readJsonSync(CONFIG_PATH) };
   } catch (error) {
     console.error('Error loading configuration:', error.message);
+  }
+} else if (fs.existsSync(LEGACY_CONFIG_PATH)) {
+  // Migrate from legacy location
+  try {
+    console.log('Migrating configuration from legacy location...');
+    config = { ...config, ...fs.readJsonSync(LEGACY_CONFIG_PATH) };
+    saveConfig(); // Save to new location
+    console.log(`Configuration migrated to ${CONFIG_PATH}`);
+  } catch (error) {
+    console.error('Error migrating configuration:', error.message);
   }
 }
 

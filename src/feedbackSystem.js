@@ -6,7 +6,16 @@ const path = require('path');
  */
 class FeedbackSystem {
   constructor(feedbackFilePath) {
-    this.feedbackFilePath = feedbackFilePath || path.join(process.cwd(), '.code-connoisseur-feedback.json');
+    // Ensure the central directory exists
+    const connoisseurDir = path.join(process.cwd(), '.code-connoisseur');
+    try {
+      fs.ensureDirSync(connoisseurDir);
+    } catch (error) {
+      console.warn(`Could not create .code-connoisseur directory: ${error.message}`);
+    }
+    
+    // Store feedback in the central directory
+    this.feedbackFilePath = feedbackFilePath || path.join(connoisseurDir, 'feedback.json');
     this.feedbackLogs = this._loadFeedback();
   }
   
@@ -17,8 +26,22 @@ class FeedbackSystem {
    */
   _loadFeedback() {
     try {
+      // Check for the new feedback file location
       if (fs.existsSync(this.feedbackFilePath)) {
         return fs.readJsonSync(this.feedbackFilePath);
+      }
+      
+      // Check for legacy feedback location for migration
+      const legacyFeedbackPath = path.join(process.cwd(), '.code-connoisseur-feedback.json');
+      if (fs.existsSync(legacyFeedbackPath)) {
+        console.log('Migrating feedback data from legacy location...');
+        const legacyFeedback = fs.readJsonSync(legacyFeedbackPath);
+        
+        // Save to the new location
+        fs.writeJsonSync(this.feedbackFilePath, legacyFeedback, { spaces: 2 });
+        console.log(`Feedback data migrated to ${this.feedbackFilePath}`);
+        
+        return legacyFeedback;
       }
     } catch (error) {
       console.error(`Error loading feedback: ${error.message}`);
