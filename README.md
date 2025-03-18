@@ -16,29 +16,53 @@ Code Connoisseur is an AI-powered code review agent built for multiple technolog
 
 ## Installation
 
+### Option 1: NPM Installation (Recommended)
+
+Install Code Connoisseur globally via npm:
+
+```bash
+npm install -g code-connoisseur
+```
+
+After installation, the setup wizard will guide you through configuring your API keys. You'll need:
+- OpenAI API key from [OpenAI](https://platform.openai.com/)
+- Anthropic API key from [Anthropic](https://console.anthropic.com/)
+- (Optional) Pinecone API key from [Pinecone](https://app.pinecone.io/)
+
+You can reconfigure at any time by running:
+```bash
+code-connoisseur setup
+```
+
+### Option 2: Manual Installation
+
+If you prefer to install from source:
+
 1. Clone the repository:
-   ```
+   ```bash
    git clone https://github.com/Maheshmali1/code-connoisseur
    cd code-connoisseur
    ```
 
 2. Install dependencies:
-   ```
+   ```bash
    npm install
    ```
 
-3. Create a `.env` file in the directory where you'll be running the agent:
-   ```
-   cp .env.example /path/to/your/project/.env
+3. Create a `.env` file in the project directory:
+   ```bash
+   cp .env.example .env
    ```
 
-4. Add your API keys to the `.env` file in your target project directory:
-   - Get an OpenAI API key from [OpenAI](https://platform.openai.com/)
-   - Get an Anthropic API key from [Anthropic](https://console.anthropic.com/)
-   - Get a Pinecone API key from [Pinecone](https://app.pinecone.io/)
+4. Add your API keys to the `.env` file:
+   ```
+   OPENAI_API_KEY=your_openai_key_here
+   ANTHROPIC_API_KEY=your_anthropic_key_here
+   PINECONE_API_KEY=your_pinecone_key_here  # Optional
+   ```
 
 5. Make the CLI tool globally available:
-   ```
+   ```bash
    npm link
    ```
 

@@ -6,10 +6,15 @@ const fs = require('fs-extra');
 const path = require('path');
 const dotenv = require('dotenv');
 
-// First, try to load environment variables
+// Try to load environment variables from multiple locations
+const os = require('os');
+const GLOBAL_CONFIG_DIR = path.join(os.homedir(), '.code-connoisseur-config');
+const GLOBAL_ENV_FILE = path.join(GLOBAL_CONFIG_DIR, '.env');
+
 const envPaths = [
-  path.join(process.cwd(), '.env'),
-  path.join(__dirname, '.env')
+  path.join(process.cwd(), '.env'),           // Project-specific .env
+  path.join(__dirname, '.env'),               // Package directory .env
+  GLOBAL_ENV_FILE                            // Global config .env
 ];
 
 let envLoaded = false;
@@ -17,7 +22,7 @@ for (const envPath of envPaths) {
   if (fs.existsSync(envPath)) {
     const result = dotenv.config({ path: envPath });
     if (!result.error) {
-      console.log(`CLI startup: Loaded environment from ${envPath}`);
+      console.log(`Loaded environment from: ${envPath}`);
       envLoaded = true;
       break;
     }
@@ -25,7 +30,8 @@ for (const envPath of envPaths) {
 }
 
 if (!envLoaded) {
-  console.error('Warning: No .env file found in CLI startup');
+  console.warn('Warning: No .env file found! You may need to run setup.');
+  console.warn(`Run 'code-connoisseur setup' to configure your API keys.`);
 }
 
 // Now load the actual CLI application

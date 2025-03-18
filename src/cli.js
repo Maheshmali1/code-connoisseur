@@ -34,48 +34,70 @@ const { CodeReviewAgent } = require('./agent');
 
 // Default index name
 const DEFAULT_INDEX_NAME = 'code-connoisseur';
+const DEFAULT_VERSION = '1.0.0';
 
-// Create a central directory for all code-connoisseur files in the repository
-const CONNOISSEUR_DIR = path.join(process.cwd(), '.code-connoisseur');
-fs.ensureDirSync(CONNOISSEUR_DIR);
+// Global configuration directory (in user's home folder)
+const os = require('os');
+const GLOBAL_CONFIG_DIR = path.join(os.homedir(), '.code-connoisseur-config');
+const GLOBAL_CONFIG_PATH = path.join(GLOBAL_CONFIG_DIR, 'config.json');
 
-// Configuration file path
-const CONFIG_PATH = path.join(CONNOISSEUR_DIR, 'config.json');
+// Project-specific configuration directory
+const PROJECT_CONFIG_DIR = path.join(process.cwd(), '.code-connoisseur');
+const PROJECT_CONFIG_PATH = path.join(PROJECT_CONFIG_DIR, 'config.json');
 
-// Initialize configuration
+// Ensure project config directory exists
+fs.ensureDirSync(PROJECT_CONFIG_DIR);
+
+// Initialize default configuration
 let config = {
   indexName: DEFAULT_INDEX_NAME,
-  llmProvider: process.env.DEFAULT_LLM_PROVIDER || 'anthropic', // Use default from env or fallback to anthropic
-  extensions: ['js', 'ts', 'jsx', 'tsx', 'py'],  // Added Python files by default
-  excludeDirs: ['node_modules', 'dist', 'build', '.git', 'venv', '__pycache__'],  // Added Python-specific dirs to exclude
-  version: '1.0.0'
+  llmProvider: process.env.DEFAULT_LLM_PROVIDER || 'anthropic',
+  extensions: ['js', 'ts', 'jsx', 'tsx', 'py'],
+  excludeDirs: ['node_modules', 'dist', 'build', '.git', 'venv', '__pycache__'],
+  version: DEFAULT_VERSION
 };
 
 // Check for legacy config file in project root (for migration)
 const LEGACY_CONFIG_PATH = path.join(process.cwd(), '.code-connoisseur.json');
 
-// Load configuration 
-if (fs.existsSync(CONFIG_PATH)) {
+// Load configuration with precedence: 
+// 1. Project config (highest priority)
+// 2. Legacy project config (for migration)
+// 3. Global config (lowest priority)
+
+// Try project config first
+if (fs.existsSync(PROJECT_CONFIG_PATH)) {
   try {
-    config = { ...config, ...fs.readJsonSync(CONFIG_PATH) };
+    config = { ...config, ...fs.readJsonSync(PROJECT_CONFIG_PATH) };
+    if (global.verbose) console.log(`Loaded project configuration from ${PROJECT_CONFIG_PATH}`);
   } catch (error) {
-    console.error('Error loading configuration:', error.message);
+    console.error('Error loading project configuration:', error.message);
   }
-} else if (fs.existsSync(LEGACY_CONFIG_PATH)) {
-  // Migrate from legacy location
+} 
+// Try legacy config for migration
+else if (fs.existsSync(LEGACY_CONFIG_PATH)) {
   try {
     console.log('Migrating configuration from legacy location...');
     config = { ...config, ...fs.readJsonSync(LEGACY_CONFIG_PATH) };
     saveConfig(); // Save to new location
-    console.log(`Configuration migrated to ${CONFIG_PATH}`);
+    console.log(`Configuration migrated to ${PROJECT_CONFIG_PATH}`);
   } catch (error) {
-    console.error('Error migrating configuration:', error.message);
+    console.error('Error migrating legacy configuration:', error.message);
+  }
+} 
+// Fall back to global config
+else if (fs.existsSync(GLOBAL_CONFIG_PATH)) {
+  try {
+    config = { ...config, ...fs.readJsonSync(GLOBAL_CONFIG_PATH) };
+    if (global.verbose) console.log(`Loaded global configuration from ${GLOBAL_CONFIG_PATH}`);
+  } catch (error) {
+    console.error('Error loading global configuration:', error.message);
   }
 }
 
-// Save configuration
+// Save configuration to project directory
 function saveConfig() {
-  fs.writeJsonSync(CONFIG_PATH, config, { spaces: 2 });
+  fs.writeJsonSync(PROJECT_CONFIG_PATH, config, { spaces: 2 });
 }
 
 // Wait a short time to ensure environment variables are loaded
@@ -901,6 +923,15 @@ program
       console.error(error);
       process.exit(1);
     }
+  });
+
+// Setup command - for configuring API keys and settings
+program
+  .command('setup')
+  .description('Configure API keys and global settings')
+  .action(() => {
+    const setupScript = path.join(__dirname, '..', 'scripts', 'postinstall.js');
+    require(setupScript);
   });
 
 // Handle unknown commands
