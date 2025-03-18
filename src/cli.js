@@ -34,48 +34,76 @@ const { CodeReviewAgent } = require('./agent');
 
 // Default index name
 const DEFAULT_INDEX_NAME = 'code-connoisseur';
+const DEFAULT_VERSION = '1.0.0';
 
-// Create a central directory for all code-connoisseur files in the repository
-const CONNOISSEUR_DIR = path.join(process.cwd(), '.code-connoisseur');
-fs.ensureDirSync(CONNOISSEUR_DIR);
+// Global configuration directory (in user's home folder)
+const os = require('os');
+const GLOBAL_CONFIG_DIR = path.join(os.homedir(), '.code-connoisseur-config');
+// Ensure global config directory exists
+try {
+  fs.ensureDirSync(GLOBAL_CONFIG_DIR);
+} catch (err) {
+  // Ignore permission errors, we'll handle them later
+}
+const GLOBAL_CONFIG_PATH = path.join(GLOBAL_CONFIG_DIR, 'config.json');
 
-// Configuration file path
-const CONFIG_PATH = path.join(CONNOISSEUR_DIR, 'config.json');
+// Project-specific configuration directory
+const PROJECT_CONFIG_DIR = path.join(process.cwd(), '.code-connoisseur');
+const PROJECT_CONFIG_PATH = path.join(PROJECT_CONFIG_DIR, 'config.json');
 
-// Initialize configuration
+// Ensure project config directory exists
+fs.ensureDirSync(PROJECT_CONFIG_DIR);
+
+// Initialize default configuration
 let config = {
   indexName: DEFAULT_INDEX_NAME,
-  llmProvider: process.env.DEFAULT_LLM_PROVIDER || 'anthropic', // Use default from env or fallback to anthropic
-  extensions: ['js', 'ts', 'jsx', 'tsx', 'py'],  // Added Python files by default
-  excludeDirs: ['node_modules', 'dist', 'build', '.git', 'venv', '__pycache__'],  // Added Python-specific dirs to exclude
-  version: '1.0.0'
+  llmProvider: process.env.DEFAULT_LLM_PROVIDER || 'anthropic',
+  extensions: ['js', 'ts', 'jsx', 'tsx', 'py'],
+  excludeDirs: ['node_modules', 'dist', 'build', '.git', 'venv', '__pycache__'],
+  version: DEFAULT_VERSION
 };
 
 // Check for legacy config file in project root (for migration)
 const LEGACY_CONFIG_PATH = path.join(process.cwd(), '.code-connoisseur.json');
 
-// Load configuration 
-if (fs.existsSync(CONFIG_PATH)) {
+// Load configuration with precedence: 
+// 1. Project config (highest priority)
+// 2. Legacy project config (for migration)
+// 3. Global config (lowest priority)
+
+// Try project config first
+if (fs.existsSync(PROJECT_CONFIG_PATH)) {
   try {
-    config = { ...config, ...fs.readJsonSync(CONFIG_PATH) };
+    config = { ...config, ...fs.readJsonSync(PROJECT_CONFIG_PATH) };
+    if (global.verbose) console.log(`Loaded project configuration from ${PROJECT_CONFIG_PATH}`);
   } catch (error) {
-    console.error('Error loading configuration:', error.message);
+    console.error('Error loading project configuration:', error.message);
   }
-} else if (fs.existsSync(LEGACY_CONFIG_PATH)) {
-  // Migrate from legacy location
+} 
+// Try legacy config for migration
+else if (fs.existsSync(LEGACY_CONFIG_PATH)) {
   try {
     console.log('Migrating configuration from legacy location...');
     config = { ...config, ...fs.readJsonSync(LEGACY_CONFIG_PATH) };
     saveConfig(); // Save to new location
-    console.log(`Configuration migrated to ${CONFIG_PATH}`);
+    console.log(`Configuration migrated to ${PROJECT_CONFIG_PATH}`);
   } catch (error) {
-    console.error('Error migrating configuration:', error.message);
+    console.error('Error migrating legacy configuration:', error.message);
+  }
+} 
+// Fall back to global config
+else if (fs.existsSync(GLOBAL_CONFIG_PATH)) {
+  try {
+    config = { ...config, ...fs.readJsonSync(GLOBAL_CONFIG_PATH) };
+    if (global.verbose) console.log(`Loaded global configuration from ${GLOBAL_CONFIG_PATH}`);
+  } catch (error) {
+    console.error('Error loading global configuration:', error.message);
   }
 }
 
-// Save configuration
+// Save configuration to project directory
 function saveConfig() {
-  fs.writeJsonSync(CONFIG_PATH, config, { spaces: 2 });
+  fs.writeJsonSync(PROJECT_CONFIG_PATH, config, { spaces: 2 });
 }
 
 // Wait a short time to ensure environment variables are loaded
@@ -85,6 +113,11 @@ function delay(ms) {
 
 // Check if API keys are set and valid
 async function checkApiKeys(command) {
+  // Skip key check for setup command
+  if (command === 'setup') {
+    return;
+  }
+  
   // Slight delay to ensure environment variables are fully loaded
   await delay(100);
   const errors = [];
@@ -96,12 +129,14 @@ async function checkApiKeys(command) {
                         process.env.OPENAI_API_KEY !== defaultKeyValue &&
                         process.env.OPENAI_API_KEY.startsWith('sk-');
   
-  // Validate Anthropic API key format - with detailed debug
+  // Validate Anthropic API key format - with detailed debug in verbose mode
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  console.log('Anthropic key check:', anthropicKey ? `${anthropicKey.slice(0, 10)}...` : 'undefined');
-  console.log('Starts with sk-ant-?', anthropicKey?.startsWith('sk-ant-'));
-  console.log('Equals placeholder?', anthropicKey === 'placeholder');
-  console.log('Equals default value?', anthropicKey === 'your_anthropic_api_key_here');
+  if (global.verbose) {
+    console.log('Anthropic key check:', anthropicKey ? `${anthropicKey.slice(0, 10)}...` : 'undefined');
+    console.log('Starts with sk-ant-?', anthropicKey?.startsWith('sk-ant-'));
+    console.log('Equals placeholder?', anthropicKey === 'placeholder');
+    console.log('Equals default value?', anthropicKey === 'your_anthropic_api_key_here');
+  }
   
   const hasValidAnthropic = anthropicKey && 
                            anthropicKey !== 'placeholder' && 
@@ -110,19 +145,19 @@ async function checkApiKeys(command) {
   
   // Only check if we need the key for the selected provider
   if (config.llmProvider === 'openai' && !hasValidOpenAI) {
-    errors.push('OPENAI_API_KEY is not properly set in .env file');
+    errors.push('OPENAI_API_KEY is not properly set');
   }
   
   if (config.llmProvider === 'anthropic' && !hasValidAnthropic) {
-    errors.push('ANTHROPIC_API_KEY is not properly set in .env file');
+    errors.push('ANTHROPIC_API_KEY is not properly set');
   }
   
-  // Print validation status for debugging
-  if (hasValidOpenAI) {
+  // Print validation status in verbose mode
+  if (hasValidOpenAI && global.verbose) {
     console.log('Valid OpenAI API key detected');
   }
   
-  if (hasValidAnthropic) {
+  if (hasValidAnthropic && global.verbose) {
     console.log('Valid Anthropic API key detected');
   }
   
@@ -138,22 +173,13 @@ async function checkApiKeys(command) {
     console.error(chalk.red('Error: Missing or Invalid API Keys'));
     errors.forEach(error => console.error(chalk.yellow(`- ${error}`)));
     console.log('');
-    console.log(chalk.cyan('Please add your real API keys to the .env file:'));
-    console.log('1. Open the .env file in the project root directory');
-    console.log('2. Replace the placeholder values with your actual API keys:');
-    
-    if (config.llmProvider === 'openai') {
-      console.log(`   ${chalk.green('OPENAI_API_KEY=')}${chalk.blue('your_actual_key_here')}`);
-    } else {
-      console.log(`   ${chalk.green('ANTHROPIC_API_KEY=')}${chalk.blue('your_actual_key_here')}`);
-    }
-    
-    console.log(`   ${chalk.green('PINECONE_API_KEY=')}${chalk.blue('your_actual_key_here')} (optional)`);
+    console.log(chalk.cyan('Please configure your API keys with:'));
+    console.log(`  ${chalk.bold('code-connoisseur setup')}`);
     console.log('');
     console.log('You can obtain API keys from:');
     console.log('- OpenAI API key: https://platform.openai.com/');
     console.log('- Anthropic API key: https://console.anthropic.com/');
-    console.log('- Pinecone API key: https://app.pinecone.io/');
+    console.log('- Pinecone API key: https://app.pinecone.io/ (optional)');
     process.exit(1);
   }
 }
@@ -899,6 +925,37 @@ program
     } catch (error) {
       spinner.fail(`Analysis failed: ${error.message}`);
       console.error(error);
+      process.exit(1);
+    }
+  });
+
+// Setup command - for configuring API keys and settings
+program
+  .command('setup')
+  .description('Configure API keys and global settings')
+  .action(async () => {
+    try {
+      // Use spawn to run the script in a new process with proper TTY handling
+      const { spawn } = require('child_process');
+      const setupScript = path.join(__dirname, '..', 'scripts', 'postinstall.js');
+      
+      const child = spawn('node', [setupScript], {
+        stdio: 'inherit' // This ensures proper TTY handling for interactive prompts
+      });
+      
+      child.on('error', (error) => {
+        console.error(chalk.red('Error running setup:'), error.message);
+        process.exit(1);
+      });
+      
+      child.on('exit', (code) => {
+        if (code !== 0) {
+          console.error(chalk.red(`Setup exited with code ${code}`));
+          process.exit(code);
+        }
+      });
+    } catch (error) {
+      console.error(chalk.red('Error running setup:'), error.message);
       process.exit(1);
     }
   });
