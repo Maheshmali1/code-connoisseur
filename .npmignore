@@ -1,0 +1,40 @@
+# Development files
+.goosehints
+.goose
+.env
+.vector_store
+sample
+.idea
+.git
+.gitignore
+.github
+node_modules
+
+# Test files
+__tests__
+*.test.js
+*.spec.js
+coverage
+.nyc_output
+
+# Code Connoisseur generated files
+.code-connoisseur/vectors/
+.code-connoisseur-alt/
+
+# Examples and docs not needed in the package
+examples
+docs
+*.md.bak
+*.md.old
+
+# Build and CI files
+.travis.yml
+.gitlab-ci.yml
+.github
+.circleci
+
+# Misc
+.DS_Store
+Thumbs.db
+.vscode
+.idea
