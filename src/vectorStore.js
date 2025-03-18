@@ -4,9 +4,9 @@ const fs = require('fs-extra');
 const path = require('path');
 require('dotenv').config();
 
-// Local storage path for vectors (as fallback)
-// Use a directory in the user's home folder instead of the project directory
-const LOCAL_VECTOR_PATH = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.code-connoisseur-vectors');
+// Local storage path for vectors - store in the current repository
+// This will create a .code-connoisseur directory in the project root
+const LOCAL_VECTOR_PATH = path.join(process.cwd(), '.code-connoisseur', 'vectors');
 
 // Initialize embeddings based on available API keys
 let embeddings;
@@ -238,16 +238,16 @@ async function storeEmbeddingsLocally(embeddedChunks, indexName) {
     // If there was an error creating the directory or checking permissions
     console.error(`Error with vector storage directory: ${dirError.message}`);
     
-    // Try an alternative directory in /tmp as a fallback (Unix-like systems)
-    if (process.platform !== 'win32' && fs.existsSync('/tmp')) {
-      const alternatePath = path.join('/tmp', `.code-connoisseur-${Date.now()}`);
+    // Try an alternative directory within the repository in case of permission issues
+    try {
+      const alternatePath = path.join(process.cwd(), '.code-connoisseur-alt', 'vectors');
       console.log(`Trying alternate storage location: ${alternatePath}`);
       
       await fs.ensureDir(alternatePath);
       // Update the path for this session only
       indexDir = path.join(alternatePath, indexName);
       await fs.ensureDir(indexDir);
-    } else {
+    } catch (altError) {
       // If all else fails, throw the original error
       throw dirError;
     }
@@ -352,12 +352,12 @@ async function storeEmbeddingsLocally(embeddedChunks, indexName) {
     console.log(`Saved ${embeddedChunks.length} chunks in ${totalBatches} batches`);
     console.log(`Storage location: ${indexDir}`);
     
-    // Create a .location file in the standard location to help find the alternate location if used
+    // Create a .location file in the metadata directory to help find the alternate location
     if (!indexDir.startsWith(LOCAL_VECTOR_PATH)) {
       try {
-        const standardDir = path.join(LOCAL_VECTOR_PATH, indexName);
-        await fs.ensureDir(LOCAL_VECTOR_PATH);
-        await fs.writeJson(path.join(LOCAL_VECTOR_PATH, `${indexName}-location.json`), {
+        const metaDir = path.join(process.cwd(), '.code-connoisseur', 'metadata');
+        await fs.ensureDir(metaDir);
+        await fs.writeJson(path.join(metaDir, `${indexName}-location.json`), {
           alternate_path: indexDir,
           created: new Date().toISOString()
         });
@@ -565,14 +565,22 @@ async function getStorageLocation(indexName) {
     }
   }
   
+  // Check legacy location in user's home directory
+  const legacyPath = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.code-connoisseur-vectors', indexName);
+  if (await fs.pathExists(legacyPath)) {
+    console.log(`Found legacy index at ${legacyPath}`);
+    console.log('Consider reindexing to use the new centralized storage location');
+    return legacyPath;
+  }
+  
   // Check common alternate locations
   const alternateLocations = [
-    // Unix-like temp directory
-    path.join('/tmp', `.code-connoisseur-*/${indexName}`),
-    // User home temp directory
-    path.join(process.env.HOME || '.', 'tmp', `.code-connoisseur-*/${indexName}`),
-    // Current directory
-    path.join(process.cwd(), '.vector_store', indexName)
+    // Primary repository storage location
+    path.join(process.cwd(), '.code-connoisseur', 'vectors', indexName),
+    // Alternate repository storage location
+    path.join(process.cwd(), '.code-connoisseur-alt', 'vectors', indexName),
+    // Legacy location in home directory (for backward compatibility)
+    path.join(process.env.HOME || process.env.USERPROFILE || '.', '.code-connoisseur-vectors', indexName)
   ];
   
   // Try each alternative

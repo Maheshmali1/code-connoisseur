@@ -6,3 +6,7 @@
 sample
 .idea
 node_modules
+
+# Code Connoisseur files
+.code-connoisseur/vectors/
+.code-connoisseur-alt/

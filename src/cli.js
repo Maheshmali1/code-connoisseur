@@ -35,8 +35,12 @@ const { CodeReviewAgent } = require('./agent');
 // Default index name
 const DEFAULT_INDEX_NAME = 'code-connoisseur';
 
+// Create a central directory for all code-connoisseur files in the repository
+const CONNOISSEUR_DIR = path.join(process.cwd(), '.code-connoisseur');
+fs.ensureDirSync(CONNOISSEUR_DIR);
+
 // Configuration file path
-const CONFIG_PATH = path.join(process.cwd(), '.code-connoisseur.json');
+const CONFIG_PATH = path.join(CONNOISSEUR_DIR, 'config.json');
 
 // Initialize configuration
 let config = {
@@ -47,12 +51,25 @@ let config = {
   version: '1.0.0'
 };
 
-// Load configuration if exists
+// Check for legacy config file in project root (for migration)
+const LEGACY_CONFIG_PATH = path.join(process.cwd(), '.code-connoisseur.json');
+
+// Load configuration 
 if (fs.existsSync(CONFIG_PATH)) {
   try {
     config = { ...config, ...fs.readJsonSync(CONFIG_PATH) };
   } catch (error) {
     console.error('Error loading configuration:', error.message);
+  }
+} else if (fs.existsSync(LEGACY_CONFIG_PATH)) {
+  // Migrate from legacy location
+  try {
+    console.log('Migrating configuration from legacy location...');
+    config = { ...config, ...fs.readJsonSync(LEGACY_CONFIG_PATH) };
+    saveConfig(); // Save to new location
+    console.log(`Configuration migrated to ${CONFIG_PATH}`);
+  } catch (error) {
+    console.error('Error migrating configuration:', error.message);
   }
 }
 
@@ -154,14 +171,22 @@ function debugEnvironment() {
 // Initialize CLI
 program
   .name('code-connoisseur')
-  .description('AI-powered code review agent for Node.js projects')
+  .description('AI-powered code review agent for multiple technology stacks')
   .version(config.version)
-  .option('--debug-env', 'Display environment variables for debugging');
+  .option('--debug-env', 'Display environment variables for debugging')
+  .option('-v, --verbose', 'Enable verbose output with detailed logging');
 
 // Process global options
 program.hook('preAction', (thisCommand, actionCommand) => {
   if (program.opts().debugEnv) {
     debugEnvironment();
+  }
+  
+  // Set verbose mode if requested
+  if (program.opts().verbose) {
+    console.log(chalk.cyan('Verbose mode enabled - showing detailed output'));
+    // This flag can be used throughout the code to show additional information
+    global.verbose = true;
   }
 });
 
@@ -170,7 +195,7 @@ program
   .command('index')
   .description('Index your codebase for the AI agent')
   .option('-d, --directory <path>', 'Directory to index', process.cwd())
-  .option('-i, --index-name <name>', 'Name for the Pinecone index', config.indexName)
+  .option('-i, --index-name <name>', 'Name for the vector database index', config.indexName)
   .option('-e, --extensions <list>', 'File extensions to index (comma-separated)', config.extensions.join(','))
   .option('--js-only', 'Only index JavaScript files (shortcut for -e js,jsx,ts,tsx)')
   .option('--py-only', 'Only index Python files (shortcut for -e py)')
@@ -288,11 +313,14 @@ program
   .argument('<path>', 'File or directory to review')
   .option('-o, --old <path>', 'Previous version of the file (if not in git)')
   .option('-l, --llm <provider>', 'LLM provider (openai or anthropic)', config.llmProvider)
+  .option('-i, --index-name <name>', 'Name of the index to use for review', config.indexName)
   .option('-r, --root <dir>', 'Project root directory for analysis', process.cwd())
   .option('-s, --stack <name>', 'Specify the technology stack (MEAN/MERN, Java, Python)')
   .option('-d, --directory', 'Review an entire directory of files')
   .option('-e, --extensions <list>', 'File extensions to include when reviewing directories', config.extensions.join(','))
-  .option('-m, --markdown <file>', 'Save review to a markdown file')
+  .option('-m, --markdown <file>', 'Save review to a markdown file (specify output path)')
+  .option('--max-files <number>', 'Maximum number of files to review in a directory', '10')
+  .option('--diff', 'Only show changes in the review (compact mode)')
   .action(async (targetPath, options) => {
     await checkApiKeys('review');
     
@@ -332,9 +360,10 @@ program
     reviewInProgress = true;
     
     try {
-      // Initialize agent
+      // Initialize agent with specified index name
       spinner.text = 'Initializing code review agent...';
-      const agent = new CodeReviewAgent(config.indexName, config.llmProvider);
+      const indexName = options.indexName || config.indexName;
+      const agent = new CodeReviewAgent(indexName, config.llmProvider);
       
       // Check if we're reviewing a directory or a single file
       const isDirectory = fs.statSync(absolutePath).isDirectory() || options.directory;
@@ -428,7 +457,7 @@ program
         }
         
         // Limit the number of files to avoid timeouts
-        const MAX_FILES = 10;
+        const MAX_FILES = parseInt(options.maxFiles) || 10;
         if (filesToReview.length > MAX_FILES) {
           console.log(chalk.yellow(`Found ${filesToReview.length} files, but only reviewing the ${MAX_FILES} most recently modified`));
           
@@ -652,6 +681,11 @@ program
   .description('Configure the agent settings')
   .action(async () => {
     await checkApiKeys('configure');
+    
+    console.log(chalk.cyan(`Code Connoisseur v${config.version}`));
+    console.log(chalk.cyan('Configuration settings:'));
+    console.log('');
+    
     const answers = await inquirer.prompt([
       {
         type: 'input',
@@ -688,6 +722,131 @@ program
     
     saveConfig();
     console.log(chalk.green('Configuration updated!'));
+  });
+
+// Clean command - for removing indexed files
+program
+  .command('clean')
+  .description('Remove indexed files and configuration')
+  .option('-i, --index-name <name>', 'Name of the index to remove', config.indexName)
+  .option('--all', 'Remove all indexed data and configuration')
+  .option('--confirm', 'Skip confirmation prompt')
+  .action(async (options) => {
+    if (!options.confirm) {
+      const { confirm } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'confirm',
+          message: options.all 
+            ? 'Are you sure you want to remove ALL indexed data and configuration?' 
+            : `Are you sure you want to remove indexed data for "${options.indexName}"?`,
+          default: false
+        }
+      ]);
+      
+      if (!confirm) {
+        console.log(chalk.yellow('Operation cancelled'));
+        return;
+      }
+    }
+    
+    const spinner = ora('Cleaning up indexed files...').start();
+    
+    try {
+      if (options.all) {
+        // Remove the entire .code-connoisseur directory
+        await fs.remove(CONNOISSEUR_DIR);
+        spinner.succeed('Removed all indexed data and configuration');
+      } else {
+        // Remove just the specific index
+        const vectorPath = path.join(CONNOISSEUR_DIR, 'vectors', options.indexName);
+        if (await fs.pathExists(vectorPath)) {
+          await fs.remove(vectorPath);
+          spinner.succeed(`Removed index: ${options.indexName}`);
+        } else {
+          spinner.info(`Index "${options.indexName}" not found`);
+        }
+      }
+    } catch (error) {
+      spinner.fail(`Error cleaning up: ${error.message}`);
+    }
+  });
+
+// List command - for showing available indexes
+program
+  .command('list')
+  .description('List available indexed codebases')
+  .action(async () => {
+    const spinner = ora('Finding available indexes...').start();
+    
+    try {
+      // Check if the vectors directory exists
+      const vectorsDir = path.join(CONNOISSEUR_DIR, 'vectors');
+      if (!await fs.pathExists(vectorsDir)) {
+        spinner.info('No indexed codebases found');
+        return;
+      }
+      
+      // Get all subdirectories in the vectors directory
+      const items = await fs.readdir(vectorsDir);
+      const indexes = [];
+      
+      for (const item of items) {
+        const itemPath = path.join(vectorsDir, item);
+        const stats = await fs.stat(itemPath);
+        
+        if (stats.isDirectory()) {
+          // Try to read the meta.json file to get more info
+          try {
+            const metaPath = path.join(itemPath, 'meta.json');
+            if (await fs.pathExists(metaPath)) {
+              const meta = await fs.readJson(metaPath);
+              indexes.push({
+                name: item,
+                created: meta.created || 'Unknown',
+                updated: meta.updated || 'Unknown',
+                chunkCount: meta.chunkCount || 'Unknown'
+              });
+            } else {
+              indexes.push({
+                name: item,
+                created: 'Unknown',
+                updated: 'Unknown',
+                chunkCount: 'Unknown'
+              });
+            }
+          } catch (error) {
+            indexes.push({
+              name: item,
+              created: 'Unknown',
+              updated: 'Unknown',
+              chunkCount: 'Unknown'
+            });
+          }
+        }
+      }
+      
+      spinner.succeed(`Found ${indexes.length} indexed codebase(s)`);
+      
+      if (indexes.length > 0) {
+        console.log('\n' + chalk.bold.cyan('Available Indexes:'));
+        console.log(chalk.yellow('============================================='));
+        
+        // Table format for indexes
+        indexes.forEach(index => {
+          console.log(chalk.bold(`• ${index.name}`));
+          console.log(`  Chunks: ${index.chunkCount}`);
+          console.log(`  Created: ${new Date(index.created).toLocaleString()}`);
+          console.log(`  Updated: ${new Date(index.updated).toLocaleString()}`);
+          console.log('');
+        });
+        
+        console.log(chalk.yellow('============================================='));
+        console.log(`Use ${chalk.cyan('code-connoisseur review <file> -i <index-name>')} to review with a specific index.`);
+      }
+    } catch (error) {
+      spinner.fail(`Error listing indexes: ${error.message}`);
+    }
   });
 
 // Feedback analysis command

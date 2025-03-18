@@ -52,11 +52,24 @@ Before you can use Code Connoisseur, you need to index your codebase:
 code-connoisseur index
 ```
 
-Options(optional):
-- `--directory, -d`: Path to your project (default: current directory)
-- `--index-name, -i`: Name for the vector database index (default: code-connoisseur)
-- `--extensions, -e`: File extensions to index (default: js,ts,jsx,tsx)
-- `--exclude, -x`: Directories to exclude (default: node_modules,dist,build,.git)
+Options (all are optional):
+- `--directory, -d <path>`: Path to your project (default: current directory)
+- `--index-name, -i <name>`: Name for the vector database index (default: code-connoisseur)
+- `--extensions, -e <list>`: File extensions to index as comma-separated list (default: js,ts,jsx,tsx,py)
+- `--exclude, -x <list>`: Directories to exclude as comma-separated list (default: node_modules,dist,build,.git)
+- `--js-only`: Only index JavaScript files (shortcut for -e js,jsx,ts,tsx)
+- `--py-only`: Only index Python files (shortcut for -e py)
+- `--java-only`: Only index Java files (shortcut for -e java)
+
+All configuration and index data will be stored in a `.code-connoisseur` directory within your project:
+
+```
+.code-connoisseur/
+  ├── config.json        # Configuration settings
+  ├── feedback.json      # User feedback history
+  ├── metadata/          # Additional metadata
+  └── vectors/           # Vector embeddings for your codebase
+```
 
 ### Reviewing Code Changes
 
@@ -67,11 +80,17 @@ code-connoisseur review <path to file/directory>
 ```
 
 Options:
-- `--old, -o`: Path to the previous version of the file (if not in git)
-- `--llm, -l`: LLM provider to use (openai or anthropic)
-- `--root, -r`: Project root directory for dependency analysis
-- `--stack, -s`: Specify the technology stack (MEAN/MERN, Java, Python)
+- `--old, -o <path>`: Path to the previous version of the file (if not in git)
+- `--llm, -l <provider>`: LLM provider to use (openai or anthropic)
+- `--index-name, -i <name>`: Name of the index to use for review
+- `--root, -r <dir>`: Project root directory for dependency analysis
+- `--stack, -s <stack>`: Specify the technology stack (MEAN/MERN, Java, Python)
 - `--directory, -d`: Review an entire directory of files
+- `--extensions, -e <list>`: File extensions to include when reviewing directories
+- `--markdown, -m <file>`: Save review to a markdown file (specify output path)
+- `--max-files <number>`: Maximum number of files to review in a directory (default: 10)
+- `--diff`: Only show changes in the review (compact mode)
+- `--verbose, -v`: Show detailed output during the review process
 
 ### Analyzing Feedback
 
@@ -92,6 +111,37 @@ code-connoisseur configure
 ```
 
 This will launch an interactive prompt to set your preferences.
+
+### Managing Indexed Codebases
+
+To list all available indexed codebases:
+
+```
+code-connoisseur list
+```
+
+To clean up indexed files:
+
+```
+code-connoisseur clean [options]
+```
+
+Options:
+- `--index-name, -i <name>`: Name of the index to remove
+- `--all`: Remove all indexed data and configuration
+- `--confirm`: Skip confirmation prompt (defaults to requiring confirmation)
+
+### Global Options
+
+These options can be used with any command:
+
+```
+code-connoisseur [command] [options]
+```
+
+- `--version`: Show the current version of Code Connoisseur
+- `--verbose, -v`: Enable verbose output with detailed logging
+- `--debug-env`: Display environment variable information for debugging
 
 ## How It Works
 
