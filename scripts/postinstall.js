@@ -6,9 +6,31 @@
  */
 const fs = require('fs-extra');
 const path = require('path');
-const inquirer = require('inquirer');
-const chalk = require('chalk');
 const os = require('os');
+
+// Try to load optional dependencies, but don't fail if they're not available
+let inquirer, chalk;
+try {
+  inquirer = require('inquirer');
+} catch (err) {
+  // If inquirer isn't available, we'll handle it later
+  console.warn('Warning: inquirer package not found. Interactive setup may not work properly.');
+}
+
+try {
+  chalk = require('chalk');
+} catch (err) {
+  // Create a simple chalk-like interface if chalk isn't available
+  chalk = {
+    cyan: (text) => text,
+    green: (text) => text,
+    yellow: (text) => text,
+    red: (text) => text,
+    bold: {
+      cyan: (text) => text
+    }
+  };
+}
 
 // Global config directory in user's home folder
 const CONFIG_DIR = path.join(os.homedir(), '.code-connoisseur-config');
@@ -44,6 +66,14 @@ async function main() {
   console.log(chalk.cyan.bold('\n📝 Code Connoisseur Setup Wizard'));
   console.log(chalk.cyan('=================================\n'));
   console.log('This wizard will help you set up Code Connoisseur for first use.\n');
+  
+  // Check if inquirer is available
+  if (!inquirer) {
+    console.error('Error: The inquirer package is required for interactive setup.');
+    console.error('Please run: npm install inquirer@8.2.6');
+    console.error('Then run this setup again.');
+    process.exit(1);
+  }
 
   // Check if configuration already exists
   const configExists = fs.existsSync(CONFIG_FILE);

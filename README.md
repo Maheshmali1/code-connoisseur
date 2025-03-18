@@ -24,6 +24,21 @@ Install Code Connoisseur globally via npm:
 npm install -g code-connoisseur
 ```
 
+If you encounter permission errors, you can either:
+
+1. Use sudo (quick but not recommended for security):
+   ```bash
+   sudo npm install -g code-connoisseur
+   ```
+
+2. Configure npm to use a different directory (recommended):
+   ```bash
+   mkdir -p ~/.npm-global
+   npm config set prefix '~/.npm-global'
+   export PATH=~/.npm-global/bin:$PATH
+   ```
+   Add the export line to your .bashrc or .zshrc file to make it permanent.
+
 After installation, the setup wizard will guide you through configuring your API keys. You'll need:
 - OpenAI API key from [OpenAI](https://platform.openai.com/)
 - Anthropic API key from [Anthropic](https://console.anthropic.com/)
