@@ -1,6 +1,6 @@
 {
   "name": "code-connoisseur",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.2",
   "description": "AI-powered code review agent for multiple technology stacks",
   "main": "index.js",
   "bin": {
