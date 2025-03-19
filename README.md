@@ -2,6 +2,8 @@
 
 Code Connoisseur is an AI-powered code review agent built for multiple technology stacks, including MEAN/MERN, Java, and Python. It uses state-of-the-art language models (LLMs) to analyze your code changes and provide actionable, stack-specific feedback.
 
+> **Want to know how Code Connoisseur compares to commercial tools?** See our [detailed comparison](COMPARISON.md) with leading code review tools like CodeRabbit, DeepCode, Codiga, and Bito.
+
 ## Features
 
 - **Context-aware Reviews**: Understands your entire codebase, not just the changed files
