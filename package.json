@@ -4,7 +4,7 @@
   "description": "AI-powered code review agent for multiple technology stacks",
   "main": "index.js",
   "bin": {
-    "code-connoisseur": "./index.js"
+    "code-connoisseur": "index.js"
   },
   "scripts": {
     "start": "node index.js",
@@ -27,7 +27,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Maheshmali1/code-connoisseur"
+    "url": "git+https://github.com/Maheshmali1/code-connoisseur.git"
   },
   "homepage": "https://github.com/Maheshmali1/code-connoisseur#readme",
   "bugs": {
