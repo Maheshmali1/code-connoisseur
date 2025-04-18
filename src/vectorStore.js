@@ -13,12 +13,22 @@ let embeddings;
 let usingValidOpenAI = false;
 let usingValidAnthropic = false;
 
+// Check if we're running in a test environment
+const isTestEnvironment = process.env.OPENAI_API_KEY?.includes('test') || 
+                         process.env.ANTHROPIC_API_KEY?.includes('test') ||
+                         process.env.NODE_ENV === 'test' ||
+                         process.env.JEST_WORKER_ID !== undefined;
+
+if (isTestEnvironment) {
+  console.log('Test environment detected - using mock embeddings');
+  usingValidOpenAI = false;
+} 
 // Check for valid OpenAI key
-if (process.env.OPENAI_API_KEY && 
+else if (process.env.OPENAI_API_KEY && 
     process.env.OPENAI_API_KEY !== 'your_openai_api_key_here' && 
     process.env.OPENAI_API_KEY !== 'placeholder' &&
     process.env.OPENAI_API_KEY.startsWith('sk-')) {
-  
+
   try {
     usingValidOpenAI = true;
     // Initialize OpenAI embeddings
@@ -86,28 +96,28 @@ if (process.env.PINECONE_API_KEY &&
  */
 async function embedChunks(chunks) {
   console.log(`Embedding ${chunks.length} chunks...`);
-  
+
   const embeddedChunks = [];
-  
+
   // Process in batches to avoid rate limiting
   const batchSize = 100; // Increased batch size for mock embeddings
   const totalBatches = Math.ceil(chunks.length / batchSize);
   let lastProgressReport = 0;
-  
+
   for (let i = 0; i < chunks.length; i += batchSize) {
     const batch = chunks.slice(i, i + batchSize);
     const currentBatch = Math.floor(i / batchSize) + 1;
-    
+
     // Only log progress occasionally to reduce console spam
     const progress = Math.floor((currentBatch / totalBatches) * 100);
     if (progress >= lastProgressReport + 10 || currentBatch === 1 || currentBatch === totalBatches) {
       console.log(`Processing ${progress}% (batch ${currentBatch}/${totalBatches})`);
       lastProgressReport = progress;
     }
-    
+
     const texts = batch.map(chunk => chunk.code);
     const vectors = await embeddings.embedDocuments(texts);
-    
+
     for (let j = 0; j < batch.length; j++) {
       const chunk = batch[j];
       // Create a hash of the path and name to keep ID shorter
@@ -125,7 +135,7 @@ async function embedChunks(chunks) {
       });
     }
   }
-  
+
   return embeddedChunks;
 }
 
@@ -151,10 +161,10 @@ async function storeEmbeddings(embeddedChunks, indexName) {
  */
 async function storeEmbeddingsInPinecone(embeddedChunks, indexName) {
   console.log(`Storing ${embeddedChunks.length} embeddings in Pinecone index: ${indexName}`);
-  
+
   // Get or create index
   let index = pinecone.Index(indexName);
-  
+
   // Check if index exists
   let indexExists = false;
   try {
@@ -186,7 +196,7 @@ async function storeEmbeddingsInPinecone(embeddedChunks, indexName) {
     await new Promise(resolve => setTimeout(resolve, 30000)); 
     index = pinecone.Index(indexName);
   }
-  
+
   // Upload in batches
   const batchSize = 100;
   for (let i = 0; i < embeddedChunks.length; i += batchSize) {
@@ -194,7 +204,7 @@ async function storeEmbeddingsInPinecone(embeddedChunks, indexName) {
     console.log(`Uploading batch ${i / batchSize + 1}/${Math.ceil(embeddedChunks.length / batchSize)}`);
     await index.upsert(batch);
   }
-  
+
   console.log('All embeddings stored successfully in Pinecone');
 }
 
@@ -206,23 +216,23 @@ async function storeEmbeddingsInPinecone(embeddedChunks, indexName) {
  */
 async function storeEmbeddingsLocally(embeddedChunks, indexName) {
   console.log(`Storing ${embeddedChunks.length} embeddings locally in: ${indexName}`);
-  
+
   // Get or create a writable directory for storage
   let indexDir;
   try {
     // Create the vector store directory if it doesn't exist
     await fs.ensureDir(LOCAL_VECTOR_PATH);
     console.log(`Using vector storage directory: ${LOCAL_VECTOR_PATH}`);
-    
+
     // Check if we have write permissions by writing a test file
     const testFilePath = path.join(LOCAL_VECTOR_PATH, 'test-write-permission.txt');
     await fs.writeFile(testFilePath, 'test', { flag: 'w' });
     await fs.unlink(testFilePath); // Remove test file if successful
-    
+
     // Create a specific directory for this index
     indexDir = path.join(LOCAL_VECTOR_PATH, indexName);
     await fs.ensureDir(indexDir);
-    
+
     // Make sure the permissions are set correctly
     try {
       // On Unix-like systems, ensure user has read/write permissions
@@ -237,12 +247,12 @@ async function storeEmbeddingsLocally(embeddedChunks, indexName) {
   } catch (dirError) {
     // If there was an error creating the directory or checking permissions
     console.error(`Error with vector storage directory: ${dirError.message}`);
-    
+
     // Try an alternative directory within the repository in case of permission issues
     try {
       const alternatePath = path.join(process.cwd(), '.code-connoisseur-alt', 'vectors');
       console.log(`Trying alternate storage location: ${alternatePath}`);
-      
+
       await fs.ensureDir(alternatePath);
       // Update the path for this session only
       indexDir = path.join(alternatePath, indexName);
@@ -252,7 +262,7 @@ async function storeEmbeddingsLocally(embeddedChunks, indexName) {
       throw dirError;
     }
   }
-  
+
   // Create index metadata file
   const indexMetaPath = path.join(indexDir, 'meta.json');
   await fs.writeJson(indexMetaPath, {
@@ -264,22 +274,22 @@ async function storeEmbeddingsLocally(embeddedChunks, indexName) {
     updated: new Date().toISOString(),
     path: indexDir // Store the actual path used
   }, { spaces: 2 });
-  
+
   try {
     // Store chunks in batches to avoid "Invalid string length" error
     const BATCH_SIZE = 500; // Smaller batches to avoid JSON stringify limits
     const totalBatches = Math.ceil(embeddedChunks.length / BATCH_SIZE);
-    
+
     console.log(`Splitting into ${totalBatches} batches of ${BATCH_SIZE} chunks each`);
-    
+
     // Save index mappings for batch lookup
     const indexMappings = {};
     let lastProgressReport = 0;
-    
+
     // Create path mapping lookup to reduce duplicate file storage
     const pathMappings = {};
     let pathId = 0;
-    
+
     // Function to get or create a path ID for deduplication
     const getPathId = (filepath) => {
       if (!pathMappings[filepath]) {
@@ -287,40 +297,40 @@ async function storeEmbeddingsLocally(embeddedChunks, indexName) {
       }
       return pathMappings[filepath];
     };
-    
+
     // Progress tracking
     for (let i = 0; i < totalBatches; i++) {
       const start = i * BATCH_SIZE;
       const end = Math.min(start + BATCH_SIZE, embeddedChunks.length);
       const batchChunks = embeddedChunks.slice(start, end);
-      
+
       // Only log progress occasionally to reduce console spam
       const progress = Math.floor((i / totalBatches) * 100);
       if (progress >= lastProgressReport + 10 || i === 0 || i === totalBatches - 1) {
         console.log(`Writing ${progress}% (batch ${i+1}/${totalBatches})`);
         lastProgressReport = progress;
       }
-      
+
       // Process batch to reduce size - store vectors separately from metadata
       const batchVectors = [];
       const batchMetadata = [];
-      
+
       batchChunks.forEach((chunk, idx) => {
         const chunkId = chunk.id;
         const pathId = getPathId(chunk.metadata.path);
-        
+
         // Store mapping from chunk ID to batch number for lookups
         indexMappings[chunkId] = {
           batch: i,
           index: idx
         };
-        
+
         // Add to batch arrays - separating vectors and metadata to reduce size
         batchVectors.push({
           id: chunkId,
           values: chunk.values
         });
-        
+
         // Use path ID instead of full path to reduce storage size
         batchMetadata.push({
           id: chunkId,
@@ -332,26 +342,26 @@ async function storeEmbeddingsLocally(embeddedChunks, indexName) {
           }
         });
       });
-      
+
       // Save vectors and metadata separately
       const vectorPath = path.join(indexDir, `vec-${i}.json`);
       const metadataPath = path.join(indexDir, `meta-${i}.json`);
-      
+
       await fs.writeJson(vectorPath, batchVectors);
       await fs.writeJson(metadataPath, batchMetadata);
     }
-    
+
     // Save path mappings for lookup
     const pathMappingsPath = path.join(indexDir, 'paths.json');
     await fs.writeJson(pathMappingsPath, pathMappings);
-    
+
     // Save index mappings for fast lookup
     const mappingsPath = path.join(indexDir, 'map.json');
     await fs.writeJson(mappingsPath, indexMappings);
-    
+
     console.log(`Saved ${embeddedChunks.length} chunks in ${totalBatches} batches`);
     console.log(`Storage location: ${indexDir}`);
-    
+
     // Create a .location file in the metadata directory to help find the alternate location
     if (!indexDir.startsWith(LOCAL_VECTOR_PATH)) {
       try {
@@ -365,7 +375,7 @@ async function storeEmbeddingsLocally(embeddedChunks, indexName) {
         // Ignore errors writing the location file, it's just a convenience
       }
     }
-    
+
     console.log('All embeddings stored successfully locally in chunked format');
   } catch (storageError) {
     console.error(`Failed to store embeddings: ${storageError.message}`);
@@ -397,16 +407,16 @@ async function searchCodebase(query, indexName, topK = 5) {
  */
 async function searchCodebaseInPinecone(query, indexName, topK = 5) {
   console.log(`Searching for: "${query}" in Pinecone index: ${indexName}`);
-  
+
   const index = pinecone.Index(indexName);
   const queryEmbedding = await embeddings.embedQuery(query);
-  
+
   const results = await index.query({
     vector: queryEmbedding,
     topK,
     includeMetadata: true
   });
-  
+
   return results.matches.map(match => ({
     metadata: match.metadata,
     score: match.score
@@ -422,24 +432,24 @@ async function searchCodebaseInPinecone(query, indexName, topK = 5) {
  */
 async function searchCodebaseLocally(query, indexName, topK = 5) {
   console.log(`Searching for: "${query}" in local storage: ${indexName}`);
-  
+
   // Get the storage location - might be standard or alternate
   const indexDir = await getStorageLocation(indexName);
   if (!indexDir) {
     console.error(`Index ${indexName} not found in any storage location`);
     return [];
   }
-  
+
   console.log(`Using storage location: ${indexDir}`);
-  
+
   const metaPath = path.join(indexDir, 'meta.json');
   const pathsPath = path.join(indexDir, 'paths.json');
-  
+
   if (!await fs.pathExists(metaPath)) {
     console.error(`Index metadata not found for ${indexName}`);
     return [];
   }
-  
+
   // Load path mappings if available
   let pathMappings = {};
   try {
@@ -449,7 +459,7 @@ async function searchCodebaseLocally(query, indexName, topK = 5) {
   } catch (error) {
     console.warn('Error loading path mappings:', error.message);
   }
-  
+
   // Function to resolve path ID to full path
   const resolvePath = (pathId) => {
     // Find the key in pathMappings where the value matches pathId
@@ -460,42 +470,42 @@ async function searchCodebaseLocally(query, indexName, topK = 5) {
     }
     return pathId; // Return the ID if path not found
   };
-  
+
   // Generate query embedding
   const queryEmbedding = await embeddings.embedQuery(query);
-  
+
   // Process each batch of vectors
   let allResults = [];
   let batchIndex = 0;
   let batchExists = true;
   const SIMILARITY_THRESHOLD = 0.8; // Only keep matches above this threshold
-  
+
   while (batchExists) {
     const vectorPath = path.join(indexDir, `vec-${batchIndex}.json`);
     const metadataPath = path.join(indexDir, `meta-${batchIndex}.json`);
-    
+
     // Handle either old format or new format files
     const oldVectorPath = path.join(indexDir, `vectors-${batchIndex}.json`);
     const oldMetadataPath = path.join(indexDir, `metadata-${batchIndex}.json`);
-    
+
     const vectorExists = await fs.pathExists(vectorPath) || await fs.pathExists(oldVectorPath);
     const metaExists = await fs.pathExists(metadataPath) || await fs.pathExists(oldMetadataPath);
-    
+
     if (vectorExists && metaExists) {
       try {
         // Load vectors and metadata for this batch
         const useOldFormat = await fs.pathExists(oldVectorPath);
         const actualVectorPath = useOldFormat ? oldVectorPath : vectorPath;
         const actualMetadataPath = useOldFormat ? oldMetadataPath : metadataPath;
-        
+
         const vectorBatch = await fs.readJson(actualVectorPath);
         const metadataBatch = await fs.readJson(actualMetadataPath);
-        
+
         // Calculate similarity for each vector in this batch
         for (let i = 0; i < vectorBatch.length; i++) {
           const vector = vectorBatch[i].values;
           const metadataEntry = metadataBatch[i].metadata;
-          
+
           // Convert optimized metadata format to original format if needed
           let metadata;
           if (metadataEntry.p !== undefined) {
@@ -510,9 +520,9 @@ async function searchCodebaseLocally(query, indexName, topK = 5) {
             // This is the original format
             metadata = metadataEntry;
           }
-          
+
           const similarity = calculateCosineSimilarity(queryEmbedding, vector);
-          
+
           // Only keep track of items above the similarity threshold
           if (similarity > SIMILARITY_THRESHOLD) {
             allResults.push({
@@ -521,7 +531,7 @@ async function searchCodebaseLocally(query, indexName, topK = 5) {
             });
           }
         }
-        
+
         batchIndex++;
       } catch (error) {
         console.error(`Error processing batch ${batchIndex}:`, error.message);
@@ -531,12 +541,12 @@ async function searchCodebaseLocally(query, indexName, topK = 5) {
       batchExists = false;
     }
   }
-  
+
   console.log(`Found ${allResults.length} relevant items above similarity threshold`);
-  
+
   // Sort by similarity score (descending) and return top K
   const topResults = allResults.sort((a, b) => b.score - a.score).slice(0, topK);
-  
+
   return topResults;
 }
 
@@ -551,7 +561,7 @@ async function getStorageLocation(indexName) {
   if (await fs.pathExists(standardPath)) {
     return standardPath;
   }
-  
+
   // Check if we have a location file pointing to an alternate location
   const locationFile = path.join(LOCAL_VECTOR_PATH, `${indexName}-location.json`);
   if (await fs.pathExists(locationFile)) {
@@ -564,7 +574,7 @@ async function getStorageLocation(indexName) {
       console.warn(`Error reading location file: ${error.message}`);
     }
   }
-  
+
   // Check legacy location in user's home directory
   const legacyPath = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.code-connoisseur-vectors', indexName);
   if (await fs.pathExists(legacyPath)) {
@@ -572,7 +582,7 @@ async function getStorageLocation(indexName) {
     console.log('Consider reindexing to use the new centralized storage location');
     return legacyPath;
   }
-  
+
   // Check common alternate locations
   const alternateLocations = [
     // Primary repository storage location
@@ -582,7 +592,7 @@ async function getStorageLocation(indexName) {
     // Legacy location in home directory (for backward compatibility)
     path.join(process.env.HOME || process.env.USERPROFILE || '.', '.code-connoisseur-vectors', indexName)
   ];
-  
+
   // Try each alternative
   for (const altPattern of alternateLocations) {
     try {
@@ -597,7 +607,7 @@ async function getStorageLocation(indexName) {
       // Continue to next option
     }
   }
-  
+
   // Not found anywhere
   return null;
 }
@@ -613,18 +623,18 @@ function calculateCosineSimilarity(vecA, vecB) {
   let dotProduct = 0;
   let normA = 0;
   let normB = 0;
-  
+
   for (let i = 0; i < vecA.length; i++) {
     dotProduct += vecA[i] * vecB[i];
     normA += Math.pow(vecA[i], 2);
     normB += Math.pow(vecB[i], 2);
   }
-  
+
   // Handle zero vectors
   if (normA === 0 || normB === 0) {
     return 0;
   }
-  
+
   // Cosine similarity
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }

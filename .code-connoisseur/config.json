@@ -1,8 +1,11 @@
 {
   "indexName": "code-connoisseur",
-  "llmProvider": "anthropic",
+  "llmProvider": "openai",
   "extensions": [
-    "py"
+    "js",
+    "jsx",
+    "ts",
+    "tsx"
   ],
   "excludeDirs": [
     "node_modules",
