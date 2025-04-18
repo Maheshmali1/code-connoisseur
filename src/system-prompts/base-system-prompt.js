@@ -48,7 +48,6 @@ Structure your review in a clear, hierarchical format with Markdown formatting:
 When recommending changes, provide both the problematic code and your suggested implementation using markdown diff format when appropriate.
 
 ### Stack-Specific Considerations
-Depending on the stack, consider these additional points:
-\`;`
+Depending on the stack, consider these additional points:`
 
 module.exports = BASE_SYSTEM_PROMPT;
