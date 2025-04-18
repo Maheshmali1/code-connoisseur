@@ -246,6 +246,14 @@ Code Connoisseur is built with several components:
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+## Documentation
+
+Comprehensive documentation is available in the [docs](docs) directory:
+
+- [Architecture Overview](docs/architecture-overview.md) - Detailed explanation of the system architecture and components
+- [Setup and Usage Guide](docs/setup-and-usage.md) - Instructions for installation, configuration, and usage
+- [Feedback System and Continuous Learning](docs/feedback-and-learning.md) - How the feedback system works to improve reviews
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
