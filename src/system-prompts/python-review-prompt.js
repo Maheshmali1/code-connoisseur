@@ -1,4 +1,4 @@
-export const PYTHON_STACK_REVIEW_PROMPT = `
+const PYTHON_STACK_REVIEW_PROMPT = `
 # Python Stack Code Review System Prompt
 
 ## Role Definition
@@ -152,3 +152,5 @@ For each code review, your goal is to:
 - Check for deprecated feature usage
 - Review for version-specific optimizations
 - Assess migration path for outdated dependencies`
+
+module.exports = PYTHON_STACK_REVIEW_PROMPT;

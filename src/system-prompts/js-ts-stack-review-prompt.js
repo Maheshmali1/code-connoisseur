@@ -1,4 +1,4 @@
-export const MEAN_MERN_STACK_REVIEW_PROMPT = `
+const MEAN_MERN_STACK_REVIEW_PROMPT = `
 # MERN Stack Code Review System Prompt
 
 ## Role Definition
@@ -207,3 +207,5 @@ For each code review, your goal is to:
 - Consider responsive design principles and accessibility in front-end code
 - Assess internationalization (i18n) implementation if present
 `
+
+module.exports = MEAN_MERN_STACK_REVIEW_PROMPT;

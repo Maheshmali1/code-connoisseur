@@ -1,9 +1,9 @@
-import {MEAN_MERN_STACK_REVIEW_PROMPT} from "./js-ts-stack-review-prompt";
-import {JAVA_STACK_REVIEW_PROMPT} from "./java-review-prompt";
-import {BASE_SYSTEM_PROMPT} from "./base-system-prompt";
-import {PYTHON_STACK_REVIEW_PROMPT} from "./python-review-prompt";
+const BASE_SYSTEM_PROMPT = require("./base-system-prompt");
+const MEAN_MERN_STACK_REVIEW_PROMPT = require("./js-ts-stack-review-prompt");
+const JAVA_STACK_REVIEW_PROMPT = require("./java-review-prompt");
+const PYTHON_STACK_REVIEW_PROMPT = require("./python-review-prompt");
 
-export function getSystemPrompt(stack) {
+function getSystemPrompt(stack) {
     const systemPrompt = BASE_SYSTEM_PROMPT;
     switch (stack) {
         case 'MEAN/MERN':
@@ -17,3 +17,4 @@ export function getSystemPrompt(stack) {
     }
 }
 
+module.exports = getSystemPrompt;

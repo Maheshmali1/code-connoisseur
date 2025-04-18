@@ -1,4 +1,4 @@
-export const JAVA_STACK_REVIEW_PROMPT = `
+const JAVA_STACK_REVIEW_PROMPT = `
 # Java Stack Code Review System Prompt
 
 ## Role Definition
@@ -189,3 +189,5 @@ For each code review, your goal is to:
 - Transaction attribute misuse
 - Bean scope problems
 - Improper use of component scanning`
+
+module.exports = JAVA_STACK_REVIEW_PROMPT;
