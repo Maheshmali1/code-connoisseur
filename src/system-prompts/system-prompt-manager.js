@@ -17,4 +17,4 @@ function getSystemPrompt(stack) {
     }
 }
 
-module.exports = getSystemPrompt;
+module.exports = {getSystemPrompt};
