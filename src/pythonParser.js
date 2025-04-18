@@ -106,7 +106,7 @@ function extractPythonChunks(content, filePath) {
     chunks.push({
       type: type,
       name: name,
-      code: chunk.substring(0, Math.min(chunk.length, 5000)),
+      code: chunk.substring(0, Math.min(chunk.length, 5000 * 1000)),
       path: filePath
     });
     

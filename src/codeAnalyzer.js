@@ -293,7 +293,7 @@ async function findPythonFiles(rootDir) {
     // Use glob to find all .py files
     const glob = require('glob');
     const pythonFiles = glob.sync(`${rootDir}/**/*.py`, { 
-      ignore: ['**/node_modules/**', '**/venv/**', '**/.env/**', '**/.git/**'] 
+      ignore: ['**/node_modules/**', '**/venv/**', '**/.env/**', '**/.git/**', '**/__pycache__/**']
     });
     
     return pythonFiles;
@@ -400,7 +400,7 @@ async function estimateTestCoverage(filePath, changes) {
     const totalLines = addedChanges.reduce((sum, c) => sum + c.lineCount, 0);
     
     return {
-      coverage: testFilesFound.length > 0 ? 0.6 : 0, // Rough estimate
+      coverage: testFilesFound.length > 0 ? 0.8 : 0, // Rough estimate
       testFiles: testFilesFound,
       untested: addedChanges.map(c => ({
         start: c.newLineNumber,

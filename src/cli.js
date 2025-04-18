@@ -59,12 +59,9 @@ let config = {
   indexName: DEFAULT_INDEX_NAME,
   llmProvider: process.env.DEFAULT_LLM_PROVIDER || 'anthropic',
   extensions: ['js', 'ts', 'jsx', 'tsx', 'py'],
-  excludeDirs: ['node_modules', 'dist', 'build', '.git', 'venv', '__pycache__'],
+  excludeDirs: ['node_modules', 'dist', 'build', '.git', 'venv', '__pycache__','.idea', '.vscode'],
   version: DEFAULT_VERSION
 };
-
-// Check for legacy config file in project root (for migration)
-const LEGACY_CONFIG_PATH = path.join(process.cwd(), '.code-connoisseur.json');
 
 // Load configuration with precedence: 
 // 1. Project config (highest priority)
@@ -79,18 +76,8 @@ if (fs.existsSync(PROJECT_CONFIG_PATH)) {
   } catch (error) {
     console.error('Error loading project configuration:', error.message);
   }
-} 
-// Try legacy config for migration
-else if (fs.existsSync(LEGACY_CONFIG_PATH)) {
-  try {
-    console.log('Migrating configuration from legacy location...');
-    config = { ...config, ...fs.readJsonSync(LEGACY_CONFIG_PATH) };
-    saveConfig(); // Save to new location
-    console.log(`Configuration migrated to ${PROJECT_CONFIG_PATH}`);
-  } catch (error) {
-    console.error('Error migrating legacy configuration:', error.message);
-  }
-} 
+}
+
 // Fall back to global config
 else if (fs.existsSync(GLOBAL_CONFIG_PATH)) {
   try {
@@ -425,65 +412,13 @@ program
             spinner.text = `Found ${filesToReview.length} changed files in git`;
           } else {
             spinner.text = 'No git changes found, scanning directory recursively';
-            // Fall back to recursive scan
-            const getAllFiles = (dir, extensions, excluded) => {
-              const files = [];
-              const items = fs.readdirSync(dir);
-              
-              for (const item of items) {
-                const itemPath = path.join(dir, item);
-                const isExcluded = excluded.some(excl => itemPath.includes(excl));
-                
-                if (isExcluded) continue;
-                
-                const stat = fs.statSync(itemPath);
-                if (stat.isDirectory()) {
-                  files.push(...getAllFiles(itemPath, extensions, excluded));
-                } else {
-                  const ext = path.extname(itemPath).toLowerCase().substring(1); // Remove the dot
-                  if (extensions.includes(ext)) {
-                    files.push(itemPath);
-                  }
-                }
-              }
-              
-              return files;
-            };
-            
-            filesToReview = getAllFiles(absolutePath, extensionsToInclude, excludedDirs);
           }
         } catch (error) {
-          spinner.text = 'Scanning directory recursively';
-          // If git fails, scan the directory recursively
-          const getAllFiles = (dir, extensions, excluded) => {
-            const files = [];
-            const items = fs.readdirSync(dir);
-            
-            for (const item of items) {
-              const itemPath = path.join(dir, item);
-              const isExcluded = excluded.some(excl => itemPath.includes(excl));
-              
-              if (isExcluded) continue;
-              
-              const stat = fs.statSync(itemPath);
-              if (stat.isDirectory()) {
-                files.push(...getAllFiles(itemPath, extensions, excluded));
-              } else {
-                const ext = path.extname(itemPath).toLowerCase().substring(1); // Remove the dot
-                if (extensions.includes(ext)) {
-                  files.push(itemPath);
-                }
-              }
-            }
-            
-            return files;
-          };
-          
-          filesToReview = getAllFiles(absolutePath, extensionsToInclude, excludedDirs);
+          spinner.text = 'Error using git, unable to find changes';
         }
         
         // Limit the number of files to avoid timeouts
-        const MAX_FILES = parseInt(options.maxFiles) || 10;
+        const MAX_FILES = parseInt(options.maxFiles) || 250;
         if (filesToReview.length > MAX_FILES) {
           console.log(chalk.yellow(`Found ${filesToReview.length} files, but only reviewing the ${MAX_FILES} most recently modified`));
           

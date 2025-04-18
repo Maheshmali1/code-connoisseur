@@ -63,6 +63,7 @@ async function loadCodebase(directory, extensions = ['js', 'ts', 'py'], excludeD
       '.cache/**',
       '*.log',
       '*.swp',
+      'logs/**',
       
       // Environment and secrets
       '.env*',
@@ -161,7 +162,7 @@ async function loadCodebase(directory, extensions = ['js', 'ts', 'py'], excludeD
     
     // Load file contents, with safety checks
     const codebase = [];
-    const MAX_FILE_SIZE = 1024 * 1024; // 1MB limit to prevent loading huge files
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 1MB limit to prevent loading huge files
     
     let skippedCount = 0;
     for (const file of files) {
@@ -265,7 +266,7 @@ function splitCode(content, filePath) {
     return [{
       type: 'File',
       name: fileName,
-      code: typeof content === 'string' ? content.substring(0, 5000) : '',
+      code: typeof content === 'string' ? content.substring(0, 10000) : '',
       path: filePath
     }];
   }
@@ -282,7 +283,7 @@ function splitCode(content, filePath) {
       return [{
         type: 'File',
         name: fileName,
-        code: content.substring(0, Math.min(content.length, 5000)), // Limit size
+        code: content.substring(0, Math.min(content.length, 10000)), // Limit size
         path: filePath
       }];
     }
@@ -297,7 +298,7 @@ function splitCode(content, filePath) {
       return [{
         type: 'File',
         name: fileName,
-        code: content.substring(0, Math.min(content.length, 5000)), // Limit size
+        code: content.substring(0, Math.min(content.length, 10000)), // Limit size
         path: filePath
       }];
     }
@@ -315,11 +316,11 @@ function splitCode(content, filePath) {
   
   // Additional safety checks
   // Skip parsing if the file is too large or has encoding issues
-  if (content.length > 100000 || content.includes('\uFFFF')) {
+  if (content.length > (1000 * 1000) || content.includes('\uFFFF')) {
     return [{
       type: 'File',
       name: fileName,
-      code: content.substring(0, Math.min(content.length, 5000)),
+      code: content.substring(0, Math.min(content.length, 5000 * 100)),
       path: filePath
     }];
   }
@@ -380,7 +381,7 @@ function splitCode(content, filePath) {
                 chunks.push({
                   type: node.type,
                   name: node.id && node.id.name ? node.id.name : 'anonymous',
-                  code: chunk.substring(0, Math.min(chunk.length, 5000)), // Size limit
+                  code: chunk.substring(0, Math.min(chunk.length, 5000 * 100)), // Size limit
                   path: filePath
                 });
               }

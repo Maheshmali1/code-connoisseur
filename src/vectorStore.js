@@ -468,7 +468,7 @@ async function searchCodebaseLocally(query, indexName, topK = 5) {
   let allResults = [];
   let batchIndex = 0;
   let batchExists = true;
-  const SIMILARITY_THRESHOLD = 0.5; // Only keep matches above this threshold
+  const SIMILARITY_THRESHOLD = 0.8; // Only keep matches above this threshold
   
   while (batchExists) {
     const vectorPath = path.join(indexDir, `vec-${batchIndex}.json`);

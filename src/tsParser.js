@@ -95,7 +95,7 @@ function extractChunks(ast, content, filePath) {
     return [{
       type: 'File',
       name: fileName,
-      code: content.substring(0, Math.min(content.length, 5000)),
+      code: content.substring(0, Math.min(content.length, 5000 * 100)),
       path: filePath
     }];
   }
@@ -142,11 +142,12 @@ function extractChunks(ast, content, filePath) {
         chunks.push({
           type: node.type,
           name: name,
-          code: chunk.substring(0, Math.min(chunk.length, 5000)),
+          code: chunk.substring(0, Math.min(chunk.length, 5000 * 10)),
           path: filePath
         });
       }
     } catch (error) {
+      console.warn(`Error processing node: ${error.message}`);
       // Skip this node if there was an error
     }
   }
@@ -183,7 +184,7 @@ function processTypeScriptFile(content, filePath) {
       return [{
         type: 'File',
         name: path.basename(filePath),
-        code: content.substring(0, 5000), // First 5000 chars only
+        code: content.substring(0, 5000 * 1000), // First 5000 * 1000 chars only
         path: filePath
       }];
     }
@@ -206,6 +207,7 @@ function processTypeScriptFile(content, filePath) {
         return extractChunks(ast, content, filePath);
       }
     } catch (parseError) {
+      console.log(`TypeScript parsing failed: ${parseError.message}`);
       // Silent failure - just continue to fallback
     }
     
